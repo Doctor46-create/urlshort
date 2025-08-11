@@ -1,38 +1,39 @@
 package service
 
+
 import (
+	"fmt"
 	"crypto/sha256"
 	"encoding/base64"
+	"github.com/Doctor46-create/urlshort/internal/repository"
 )
 
-type Shortener interface {
-	Shorten(originalURL string) (shortKey string, err error)
-	GetOriginal(shortKey string) (originalURL string, exists bool)
+type urlService struct {
+	repo repository.URLRepository
 }
 
-type URLService struct {
-	storage map[string]string
+func NewURLService(repo repository.URLRepository) Shortener {
+	return &urlService{repo: repo}
 }
 
-func NewURLService() *URLService {
-	return &URLService{
-		storage: make(map[string]string),
-	}
-}
-
-func (s *URLService) Shorten(originalURL string) (string, error) {
+func (s *urlService) Shorten(originalURL string) (string, error) {
 	shortKey := generateShortKey(originalURL)
-	s.storage[shortKey] = originalURL
+	err := s.repo.Save(shortKey, originalURL)
+	if err != nil {
+		return "", err
+	}
 	return shortKey, nil
 }
 
-func (s *URLService) GetOriginal(shortKey string) (string, bool) {
-	originalURL, exists := s.storage[shortKey]
-	return originalURL, exists
+func (s *urlService) GetOriginal(shortKey string) (string, error) {
+	url, err := s.repo.Get(shortKey)
+	if err != nil {
+		return "", fmt.Errorf("URL not found")
+	}
+	return url, nil
 }
 
 func generateShortKey(originalURL string) string {
 	hash := sha256.Sum256([]byte(originalURL))
 	return base64.URLEncoding.EncodeToString(hash[:])[:8]
 }
-
