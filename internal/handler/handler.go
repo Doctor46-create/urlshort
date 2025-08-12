@@ -41,7 +41,7 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(h.cfg.BaseURL + shortKey))
+	w.Write([]byte(h.cfg.BaseURL + "/" + shortKey))
 }
 
 func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
