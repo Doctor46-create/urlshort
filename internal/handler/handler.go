@@ -5,15 +5,20 @@ import (
 	"net/http"
 
 	"github.com/Doctor46-create/urlshort/internal/service"
+	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/go-chi/chi/v5"
 )
 
 type urlHandler struct {
 	srvc service.Shortener
+	cfg  *config.Config
 }
 
-func NewURLHandler(srvc service.Shortener) URLHandler {
-	return &urlHandler{srvc: srvc}
+func NewURLHandler(srvc service.Shortener, cfg *config.Config) URLHandler {
+	return &urlHandler{
+		srvc: srvc,
+		cfg:  cfg,
+	}
 }
 
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +41,7 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("http://localhost:8080/" + shortKey))
+	w.Write([]byte(h.cfg.BaseURL + shortKey))
 }
 
 func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {

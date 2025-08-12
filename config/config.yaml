@@ -1,3 +1,0 @@
-http_server:
-  address: "http://localhost:8080/" 
-  timeout: 4s

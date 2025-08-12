@@ -2,35 +2,45 @@ package config
 
 import (
 	"log"
+	"flag"
 	"os"
-	"time"
+
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type Config struct {
-	Address string `yaml:"address" env-default:"localhost:8080"`
-	Timeout time.Duration `yaml:"timeout" env-default:"4s"`
+	App `yaml:"app"`
 }
 
-func MustLoad() *Config {
+type App struct {
+	Address string `yaml:"address" env-default:":8000"`
+	BaseURL string `yaml:"baseURL:" env-default:"http://localhost:8080"`
+}
+
+func (c *Config) parseArgs() {
+	flag.StringVar(&c.Address, "a", c.Address, "Host")
+	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base url")
+	flag.Parse()
+}
+
+func GetConfig() Config {
 	configPath := os.Getenv("CONFIG_PATH")
 	
 	if configPath == "" {
-		log.Println("CONFIG_PATH is not set and is set to default")
-		configPath = "./config/config.yaml"
+		log.Println("CONFIG_PATH is not declared and is set to default")
+		configPath = "config.yaml"
 	}
 
-	// check if file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file doesn't exist: %s", configPath)
 	}
 
 	var cfg Config
 
-	// load config
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
 		log.Fatalf("cannot read config: %s", err)
 	}
+	cfg.parseArgs()
 
-	return &cfg
+	return cfg
 }
