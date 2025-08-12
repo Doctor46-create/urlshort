@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testConfig() *config.Config {
-	return &config.Config{
+func testConfig() config.Config {
+	return config.Config{
 		App: config.App{
 			Address: ":8080",
 			BaseURL: "http://localhost:8080",

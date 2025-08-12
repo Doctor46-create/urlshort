@@ -11,10 +11,10 @@ import (
 
 type urlHandler struct {
 	srvc service.Shortener
-	cfg  *config.Config
+	cfg  config.Config
 }
 
-func NewURLHandler(srvc service.Shortener, cfg *config.Config) URLHandler {
+func NewURLHandler(srvc service.Shortener, cfg config.Config) URLHandler {
 	return &urlHandler{
 		srvc: srvc,
 		cfg:  cfg,

@@ -13,7 +13,7 @@ func Execute() {
 	cfg := config.GetConfig()
 	repo := repository.NewURLRepository()
 	srvc := service.NewURLService(repo)
-	handler := router.NewHandler(srvc)
+	handler := router.NewHandler(srvc, cfg)
 
 	server := &http.Server{
 		Addr:    cfg.Address,
