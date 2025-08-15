@@ -11,10 +11,10 @@ import (
 
 type urlHandler struct {
 	srvc service.Shortener
-	cfg  config.Config
+	cfg  config.ServiceConfig
 }
 
-func NewURLHandler(srvc service.Shortener, cfg config.Config) URLHandler {
+func NewURLHandler(srvc service.Shortener, cfg config.ServiceConfig) URLHandler {
 	return &urlHandler{
 		srvc: srvc,
 		cfg:  cfg,
@@ -35,13 +35,13 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	originalURL := string(body)
 	shortKey, err := h.srvc.Shorten(originalURL)
 	if err != nil {
-		http.Error(w, "Server error", http.StatusBadRequest)
+		http.Error(w, "Server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(h.cfg.BaseURL + "/" + shortKey))
+	w.Write([]byte(h.cfg.GetBaseURL() + "/" + shortKey))
 }
 
 func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +52,7 @@ func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	shortKey := chi.URLParam(r, "shortKey")
 	originalURL, err := h.srvc.GetOriginal(shortKey)
 	if err != nil {
-		http.Error(w, "Not found", http.StatusBadRequest)
+		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
 	// http.Redirect(w, r, originalURL, http.StatusTemporaryRedirect)

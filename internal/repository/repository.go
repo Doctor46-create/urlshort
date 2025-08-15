@@ -6,7 +6,7 @@ type urlRepository struct {
 	storage map[string]string
 }
 
-func NewURLRepository() *urlRepository {
+func NewURLRepository() URLRepository {
 	return &urlRepository{
 		storage: make(map[string]string),
 	}

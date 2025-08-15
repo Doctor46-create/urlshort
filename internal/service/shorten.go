@@ -1,6 +1,5 @@
 package service
 
-
 import (
 	"fmt"
 	"crypto/sha256"

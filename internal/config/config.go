@@ -14,7 +14,7 @@ type Config struct {
 
 type App struct {
 	Address string `yaml:"address" env-default:":8000"`
-	BaseURL string `yaml:"baseURL:" env-default:"http://localhost:8080"`
+	BaseURL string `yaml:"baseURL" env-default:"http://localhost:8080"`
 }
 
 func (c *Config) parseArgs() {
@@ -23,7 +23,15 @@ func (c *Config) parseArgs() {
 	flag.Parse()
 }
 
-func GetConfig() Config {
+func (c *Config) GetAddress() string {
+    return c.Address
+}
+
+func (c *Config) GetBaseURL() string {
+    return c.BaseURL
+}
+
+func GetConfig() *Config {
 	configPath := os.Getenv("CONFIG_PATH")
 	
 	if configPath == "" {
@@ -42,5 +50,5 @@ func GetConfig() Config {
 	}
 	cfg.parseArgs()
 
-	return cfg
+	return &cfg
 }

@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testConfig() config.Config {
-	return config.Config{
+func testConfig() config.ServiceConfig {
+	return &config.Config{
 		App: config.App{
 			Address: ":8080",
 			BaseURL: "http://localhost:8080",
@@ -37,7 +37,7 @@ func TestPostHandler(t *testing.T) {
 			method:      http.MethodPost,
 			body:        "www.google.com",
 			wantStatus:  http.StatusCreated,
-			wantContain: cfg.BaseURL,
+			wantContain: cfg.GetBaseURL(),
 		},
 		{
 			name:       "Wrong method",
@@ -97,7 +97,7 @@ func TestGetHandler(t *testing.T) {
 			name:       "not found",
 			method:     http.MethodGet,
 			path:       "/nonexistent",
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusNotFound,
 			wantBody:   "Not found\n",
 		},
 		{
@@ -111,7 +111,7 @@ func TestGetHandler(t *testing.T) {
 			name:       "root path",
 			method:     http.MethodGet,
 			path:       "/",
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusNotFound,
 			wantBody:   "Not found\n",
 		},
 	}
