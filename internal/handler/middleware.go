@@ -15,13 +15,6 @@ type gzipWriter struct {
 	zw *gzip.Writer
 }
 
-func newGzipWriter(w http.ResponseWriter) *gzipWriter {
-	return &gzipWriter{
-		ResponseWriter: w,
-		zw:             gzip.NewWriter(w),
-	}
-}
-
 func (g *gzipWriter) Write(b []byte) (int, error) {
 	contentType := g.Header().Get("Content-Type")
 
@@ -112,8 +105,8 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
-					http.Error(w, "Internal Server error", http.StatusInternalServerError)
-					return
+//					http.Error(w, "Internal Server error", http.StatusInternalServerError)
+//					return
 				}
 				defer gr.Close()
 				r.Body = gr
