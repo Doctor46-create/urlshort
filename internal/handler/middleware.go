@@ -114,7 +114,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				r.Body = gr
 			}
 
-			w.Header().Add("Vary", "Accept-Encoding")
+//			w.Header().Add("Vary", "Accept-Encoding")
 //			w.Header().Add("Vary", "Content-Encoding")
 
 			next.ServeHTTP(ow, r)
