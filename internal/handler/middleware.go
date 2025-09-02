@@ -27,12 +27,12 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	return g.ResponseWriter.Write(b)
 }
 
-//func (g *gzipWriter) WriteHeader(statusCode int) {
-//	if g.zw != nil {
-//		g.Header().Set("Content-Encoding", "gzip")
-//	}
-//	g.ResponseWriter.WriteHeader(statusCode)
-//}
+func (g *gzipWriter) WriteHeader(statusCode int) {
+	if g.zw != nil {
+		g.Header().Set("Content-Encoding", "gzip")
+	}
+	g.ResponseWriter.WriteHeader(statusCode)
+}
 
 func (g *gzipWriter) Close() error {
 	return g.zw.Close()
