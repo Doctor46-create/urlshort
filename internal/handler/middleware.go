@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 )
@@ -15,14 +16,16 @@ type gzipWriter struct {
 }
 
 func (g *gzipWriter) Write(b []byte) (int, error) {
+	if g.compressionFlag {
+		return g.zw.Write(b)
+	}
+
 	contentType := g.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, "application/json") ||
 		strings.Contains(contentType, "text/html") {
-		if !g.compressionFlag {
-			g.Header().Set("Content-Encoding", "gzip")
-			g.compressionFlag = true
-		}
+		g.Header().Set("Content-Encoding", "gzip")
+		g.compressionFlag = true
 		return g.zw.Write(b)
 	}
 
@@ -36,10 +39,15 @@ func (g *gzipWriter) Close() error {
 	return nil
 }
 
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
+
 func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			contentEncoding := r.Header.Get("Content-Encoding")
 			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 			if sendsGzip {
@@ -53,19 +61,30 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				defer gr.Close()
 			}
 
+			ow := w
 			acceptEncoding := r.Header.Get("Accept-Encoding")
 			supportsGzip := (strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != "")
 			if supportsGzip {
+				zw := gzipWriterPool.Get().(*gzip.Writer)
+				zw.Reset(w)
+
 				gzw := &gzipWriter{
-					ResponseWriter: w,
-					zw:             gzip.NewWriter(w),
+					ResponseWriter:  w,
+					zw:              zw,
 					compressionFlag: false,
 				}
-				w = gzw
-				defer gzw.Close()
+				ow = gzw
+
+				defer func() {
+					if gzw, ok := ow.(*gzipWriter); ok {
+						gzw.Close()
+						zw.Reset(nil)
+						gzipWriterPool.Put(zw)
+					}
+				}()
 			}
 
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(ow, r)
 		})
 	}
 }
