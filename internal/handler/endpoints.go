@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	//"strconv"
+	"strconv"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/go-chi/chi/v5"
@@ -107,9 +107,9 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	//w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonData)
+	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 
 	h.logger.Info("JSON URL shortened successfully",
 		zap.String("original_url", newRequest.URL),
