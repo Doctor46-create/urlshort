@@ -19,8 +19,7 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	contentType := g.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, "application/json") ||
-		strings.Contains(contentType, "text/html") ||
-		strings.Contains(contentType, "text/plain") {
+		strings.Contains(contentType, "text/html") {
 		if !g.compressionFlag {
 			g.Header().Set("Content-Encoding", "gzip")
 			g.compressionFlag = true
