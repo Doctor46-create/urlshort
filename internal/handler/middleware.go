@@ -28,15 +28,15 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 }
 
 func (g *gzipWriter) WriteHeader(statusCode int) {
-    contentType := g.Header().Get("Content-Type")
-    
-    if strings.Contains(contentType, "application/json") ||
-        strings.Contains(contentType, "text/html") || 
-        strings.Contains(contentType, "text/plain") {
-        g.Header().Set("Content-Encoding", "gzip")
-    }
-    
-    g.ResponseWriter.WriteHeader(statusCode)
+	contentType := g.Header().Get("Content-Type")
+
+	if strings.Contains(contentType, "application/json") ||
+		strings.Contains(contentType, "text/html") ||
+		strings.Contains(contentType, "text/plain") {
+		g.Header().Set("Content-Encoding", "gzip")
+	}
+
+	g.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (g *gzipWriter) Close() error {
@@ -61,11 +61,11 @@ func newGzipReader(r io.ReadCloser) (*gzipReader, error) {
 }
 
 func (g gzipReader) Read(p []byte) (int, error) {
-    n, err := g.zr.Read(p)
-    if err != nil && err != io.EOF {
-        return n, err
-    }
-    return n, err
+	n, err := g.zr.Read(p)
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	return n, err
 }
 
 func (g gzipReader) Close() error {
@@ -105,20 +105,20 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				}()
 			}
 
-//			contentEncoding := r.Header.Get("Content-Encoding")
+			//			contentEncoding := r.Header.Get("Content-Encoding")
 			//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
 			contentEncoding := r.Header.Get("Content-Encoding")
-//			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
-
-			if contentEncoding == "gzip" {
+			// sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
+			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
+			if sendsGzip {
 				originalBody := r.Body
 				defer originalBody.Close()
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
 					r.Body = originalBody
-//					http.Error(w, "Internal Server error", http.StatusInternalServerError)
-//					return
+					//					http.Error(w, "Internal Server error", http.StatusInternalServerError)
+					//					return
 				}
 				defer gr.Close()
 				r.Body = gr
