@@ -61,7 +61,11 @@ func newGzipReader(r io.ReadCloser) (*gzipReader, error) {
 }
 
 func (g gzipReader) Read(p []byte) (int, error) {
-	return g.zr.Read(p)
+    n, err := g.zr.Read(p)
+    if err != nil && err != io.EOF {
+        return n, err
+    }
+    return n, err
 }
 
 func (g gzipReader) Close() error {
