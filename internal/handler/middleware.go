@@ -24,7 +24,7 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 
 func (g *gzipWriter) WriteHeader(statusCode int) {
 	contentType := g.Header().Get("Content-Type")
-	if (strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html")) {
+	if (strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html")) && g.compressionFlag {
 		g.Header().Set("Content-Encoding", "gzip")
 	}
 	g.ResponseWriter.WriteHeader(statusCode)
@@ -60,7 +60,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			}
 
 			acceptEncoding := r.Header.Get("Accept-Encoding")
-			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip")
+			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != ""
 			
 			if supportsGzip {
 				zw := gzipWriterPool.Get().(*gzip.Writer)
@@ -69,7 +69,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				gzw := &gzipWriter{
 					ResponseWriter:  w,
 					zw:              zw,
-					compressionFlag: true,
+					compressionFlag: false,
 				}
 				defer func() {
 					gzw.Close()
