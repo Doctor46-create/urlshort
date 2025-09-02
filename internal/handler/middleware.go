@@ -4,7 +4,7 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strings"
-	"sync"
+//	"sync"
 
 	"go.uber.org/zap"
 )
@@ -14,12 +14,9 @@ type gzipWriter struct {
 	zw              *gzip.Writer
 	compressionFlag bool
 }
-
 func (g *gzipWriter) Write(b []byte) (int, error) {
 	contentType := g.Header().Get("Content-Type")
-
-	if strings.Contains(contentType, "application/json") ||
-		strings.Contains(contentType, "text/html") {
+	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html") {
 		if !g.compressionFlag {
 			g.Header().Set("Content-Encoding", "gzip")
 			g.compressionFlag = true
@@ -29,22 +26,6 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	return g.ResponseWriter.Write(b)
 }
 
-func (g *gzipWriter) WriteHeader(statusCode int) {
-	contentType := g.Header().Get("Content-Type")
-
-	supported := strings.Contains(contentType, "application/json") ||
-		strings.Contains(contentType, "text/html") ||
-		strings.Contains(contentType, "text/plain")
-
-	if supported && strings.Contains(strings.ToLower(g.Header().Get("Accept-Encoding")), "gzip") {
-		g.Header().Set("Content-Encoding", "gzip")
-		g.compressionFlag = true
-		g.zw.Reset(g.ResponseWriter)
-	}
-
-	g.ResponseWriter.WriteHeader(statusCode)
-}
-
 func (g *gzipWriter) Close() error {
 	if g.compressionFlag {
 		return g.zw.Close()
@@ -52,11 +33,11 @@ func (g *gzipWriter) Close() error {
 	return nil
 }
 
-var gzipWriterPool = sync.Pool{
-	New: func() any {
-		return gzip.NewWriter(nil)
-	},
-}
+//var gzipWriterPool = sync.Pool{
+//	New: func() any {
+//		return gzip.NewWriter(nil)
+//	},
+//}
 
 func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -74,30 +55,30 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				defer gr.Close()
 			}
 
-			ow := w
+//			ow := w
 			acceptEncoding := r.Header.Get("Accept-Encoding")
 			supportsGzip := (strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != "")
 			if supportsGzip {
-				zw := gzipWriterPool.Get().(*gzip.Writer)
-				zw.Reset(w)
+//				zw := gzipWriterPool.Get().(*gzip.Writer)
+//				zw.Reset(w)
 
 				gzw := &gzipWriter{
 					ResponseWriter:  w,
-					zw:              zw,
+					zw:              gzip.NewWriter(w),
 					compressionFlag: false,
 				}
-				ow = gzw
-
-				defer func() {
-					if gzw, ok := ow.(*gzipWriter); ok {
-						gzw.Close()
-						zw.Reset(nil)
-						gzipWriterPool.Put(zw)
-					}
-				}()
+				w = gzw
+				defer gzw.Close()
+//				defer func() {
+//					if gzw, ok := ow.(*gzipWriter); ok {
+//						gzw.Close()
+//						zw.Reset(nil)
+//						gzipWriterPool.Put(zw)
+//					}
+//				}()
 			}
 
-			next.ServeHTTP(ow, r)
+			next.ServeHTTP(w, r)
 		})
 	}
 }
