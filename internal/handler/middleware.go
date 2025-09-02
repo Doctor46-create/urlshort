@@ -26,7 +26,8 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	contentType := g.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, "application-json") ||
-		strings.Contains(contentType, "text/html") {
+		strings.Contains(contentType, "text/html") ||
+		strings.Contains(contentType, "text/plain") {
 		return g.zw.Write(b)
 	}
 
@@ -57,7 +58,7 @@ func newGzipReader(r io.ReadCloser) (*gzipReader, error) {
 
 	return &gzipReader{
 		ReadCloser: r,
-		zr: zr,
+		zr:         zr,
 	}, nil
 }
 
@@ -91,7 +92,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 
 				gzw := &gzipWriter{
 					ResponseWriter: w,
-					zw: zw,
+					zw:             zw,
 				}
 				ow = gzw
 
@@ -103,7 +104,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			}
 
 			contentEncoding := r.Header.Get("Content-Encoding")
-//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
+			//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
 
 			if contentEncoding == "gzip" {
 				gr, err := newGzipReader(r.Body)
@@ -116,8 +117,8 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				r.Body = gr
 			}
 
-//			w.Header().Add("Vary", "Accept-Encoding")
-//			w.Header().Add("Vary", "Content-Encoding")
+			//			w.Header().Add("Vary", "Accept-Encoding")
+			//			w.Header().Add("Vary", "Content-Encoding")
 
 			next.ServeHTTP(ow, r)
 		})
