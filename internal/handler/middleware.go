@@ -13,7 +13,7 @@ import (
 type gzipWriter struct {
 	http.ResponseWriter
 	zw              *gzip.Writer
-	CompressionFlag bool
+	compressionFlag bool
 }
 
 func (g *gzipWriter) Write(b []byte) (int, error) {
@@ -22,9 +22,9 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	if strings.Contains(contentType, "application/json") ||
 		strings.Contains(contentType, "text/html") ||
 		strings.Contains(contentType, "text/plain") {
-		if !g.CompressionFlag {
+		if !g.compressionFlag {
 			g.Header().Set("Content-Encoding", "gzip")
-			g.CompressionFlag = true
+			g.compressionFlag = true
 		}
 		return g.zw.Write(b)
 	}
@@ -33,38 +33,10 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 }
 
 func (g *gzipWriter) Close() error {
-	if g.CompressionFlag {
+	if g.compressionFlag {
 		return g.zw.Close()
 	}
 	return nil
-}
-
-type gzipReader struct {
-	io.ReadCloser
-	zr *gzip.Reader
-}
-
-func newGzipReader(r io.ReadCloser) (*gzipReader, error) {
-	zr, err := gzip.NewReader(r)
-	if err != nil {
-		return nil, err
-	}
-
-	return &gzipReader{
-		ReadCloser: r,
-		zr:         zr,
-	}, nil
-}
-
-func (g gzipReader) Read(p []byte) (int, error) {
-	return g.zr.Read(p)
-}
-
-func (g gzipReader) Close() error {
-	if err := g.zr.Close(); err != nil {
-		return err
-	}
-	return g.ReadCloser.Close()
 }
 
 var gzipWriterPool = sync.Pool{
@@ -81,18 +53,18 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			contentEncoding := r.Header.Get("Content-Encoding")
 			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 			if sendsGzip {
-				gr, err := newGzipReader(r.Body)
+				gr, err := gzip.NewReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
 					http.Error(w, "Bad Request: Invalid gzip encoding", http.StatusBadRequest)
 					return
 				}
-				defer gr.Close()
 				r.Body = gr
+				defer gr.Close()
 			}
 
 			acceptEncoding := r.Header.Get("Accept-Encoding")
-			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip")
+			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != ""
 			if supportsGzip {
 				zw := gzipWriterPool.Get().(*gzip.Writer)
 				zw.Reset(w)
@@ -100,7 +72,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				gzw := &gzipWriter{
 					ResponseWriter: w,
 					zw:             zw,
-					CompressionFlag: false,
+					compressionFlag: false,
 				}
 				ow = gzw
 
