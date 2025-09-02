@@ -29,6 +29,22 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 	return g.ResponseWriter.Write(b)
 }
 
+func (g *gzipWriter) WriteHeader(statusCode int) {
+	contentType := g.Header().Get("Content-Type")
+
+	supported := strings.Contains(contentType, "application/json") ||
+		strings.Contains(contentType, "text/html") ||
+		strings.Contains(contentType, "text/plain")
+
+	if supported && strings.Contains(strings.ToLower(g.Header().Get("Accept-Encoding")), "gzip") {
+		g.Header().Set("Content-Encoding", "gzip")
+		g.compressionFlag = true
+		g.zw.Reset(g.ResponseWriter)
+	}
+
+	g.ResponseWriter.WriteHeader(statusCode)
+}
+
 func (g *gzipWriter) Close() error {
 	if g.compressionFlag {
 		return g.zw.Close()
