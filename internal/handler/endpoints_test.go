@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func testConfig() config.ServiceConfig {
@@ -23,8 +25,18 @@ func testConfig() config.ServiceConfig {
 	}
 }
 
+func testLogger() *zap.Logger {
+	config := zap.NewDevelopmentConfig()
+	config.Level = zap.NewAtomicLevelAt(zapcore.FatalLevel)
+	logger, _ := config.Build()
+	return logger
+}
+
 func TestPostHandler(t *testing.T) {
 	cfg := testConfig()
+	logger := testLogger()
+	defer logger.Sync()
+
 	tests := []struct {
 		name        string
 		method      string
@@ -51,7 +63,7 @@ func TestPostHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repository.NewURLRepository()
 			srvc := service.NewURLService(repo)
-			h := NewURLHandler(srvc, cfg)
+			h := NewURLHandler(srvc, cfg, logger)
 
 			req, err := http.NewRequest(tt.method, "/", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)
@@ -69,6 +81,9 @@ func TestPostHandler(t *testing.T) {
 
 func TestGetHandler(t *testing.T) {
 	cfg := testConfig()
+	logger := testLogger()
+	defer logger.Sync()
+
 	repo := repository.NewURLRepository()
 	srvc := service.NewURLService(repo)
 	originalURL := "www.google.com"
@@ -120,7 +135,7 @@ func TestGetHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testRepo := repository.NewURLRepository()
 			testSrvc := service.NewURLService(testRepo)
-			testH := NewURLHandler(testSrvc, cfg)
+			testH := NewURLHandler(testSrvc, cfg, logger)
 
 			if tt.setup != nil {
 				tt.setup(testSrvc)
@@ -144,6 +159,66 @@ func TestGetHandler(t *testing.T) {
 			}
 			if tt.wantLoc != "" {
 				assert.Equal(t, tt.wantLoc, rr.Header().Get("Location"))
+			}
+		})
+	}
+}
+
+func TestShortenURLJSONHandler(t *testing.T) {
+	cfg := testConfig()
+	logger := testLogger()
+	defer logger.Sync()
+
+	tests := []struct {
+		name        string
+		method      string
+		body        string
+		wantStatus  int
+		wantContain string
+	}{
+		{
+			name:        "Successful JSON shorten",
+			method:      http.MethodPost,
+			body:        `{"url":"https://example.com"}`,
+			wantStatus:  http.StatusCreated,
+			wantContain: cfg.GetBaseURL(),
+		},
+		{
+			name:       "Invalid JSON",
+			method:     http.MethodPost,
+			body:       `invalid json`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Empty URL in JSON",
+			method:     http.MethodPost,
+			body:       `{"url":""}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "Wrong method for JSON",
+			method:     http.MethodGet,
+			body:       `{"url":"https://example.com"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := repository.NewURLRepository()
+			srvc := service.NewURLService(repo)
+			h := NewURLHandler(srvc, cfg, logger)
+
+			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+
+			rr := httptest.NewRecorder()
+			h.ShortenURLJSON(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			if tt.wantContain != "" {
+				assert.Contains(t, rr.Body.String(), tt.wantContain)
 			}
 		})
 	}

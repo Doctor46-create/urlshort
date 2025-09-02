@@ -1,61 +1,22 @@
 package handler
 
 import (
-	"io"
-	"net/http"
-
-	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/Doctor46-create/urlshort/internal/config"
-	"github.com/go-chi/chi/v5"
+	"github.com/Doctor46-create/urlshort/internal/service"
+	"go.uber.org/zap"
 )
 
 type urlHandler struct {
-	srvc service.Shortener
-	cfg  config.ServiceConfig
+	srvc   service.Shortener
+	cfg    config.ServiceConfig
+	logger *zap.Logger
 }
 
-func NewURLHandler(srvc service.Shortener, cfg config.ServiceConfig) URLHandler {
+func NewURLHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Logger) URLHandler {
 	return &urlHandler{
-		srvc: srvc,
-		cfg:  cfg,
+		srvc:   srvc,
+		cfg:    cfg,
+		logger: logger,
 	}
 }
 
-func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusBadRequest)
-		return
-	}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	originalURL := string(body)
-	shortKey, err := h.srvc.Shorten(originalURL)
-	if err != nil {
-		http.Error(w, "Server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(h.cfg.GetBaseURL() + "/" + shortKey))
-}
-
-func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusBadRequest)
-		return
-	}
-	shortKey := chi.URLParam(r, "shortKey")
-	originalURL, err := h.srvc.GetOriginal(shortKey)
-	if err != nil {
-		http.Error(w, "Not found", http.StatusNotFound)
-		return
-	}
-	// http.Redirect(w, r, originalURL, http.StatusTemporaryRedirect)
-	w.Header().Set("Location", originalURL)
-	w.WriteHeader(http.StatusTemporaryRedirect)
-}

@@ -16,7 +16,7 @@ type Handler struct {
 
 func NewHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Logger) *Handler {
 	return &Handler{
-		urlHandler: NewURLHandler(srvc, cfg),
+		urlHandler: NewURLHandler(srvc, cfg, logger),
 		logger:     logger,
 	}
 }
@@ -27,6 +27,7 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 	r.Use(mylogger.NewLoggerMiddleware(logger))
 	
 	r.Post("/", h.urlHandler.ShortenURL)
+	r.Post("/api/shorten", h.urlHandler.ShortenURLJSON)
 	r.Get("/{shortKey}", h.urlHandler.RedirectURL)
 	return r
 }
