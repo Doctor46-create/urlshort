@@ -107,27 +107,18 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				}()
 			}
 
-			//			contentEncoding := r.Header.Get("Content-Encoding")
-			//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
 			contentEncoding := r.Header.Get("Content-Encoding")
-			// sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
-			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
+			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 			if sendsGzip {
-				originalBody := r.Body
-				defer originalBody.Close()
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
-					r.Body = originalBody
-					//					http.Error(w, "Internal Server error", http.StatusInternalServerError)
-					//					return
+					http.Error(w, "Bad Request: Invalid gzip encoding", http.StatusBadRequest)
+					return
 				}
 				defer gr.Close()
 				r.Body = gr
 			}
-
-			//			w.Header().Add("Vary", "Accept-Encoding")
-			//			w.Header().Add("Vary", "Content-Encoding")
 
 			next.ServeHTTP(ow, r)
 		})
