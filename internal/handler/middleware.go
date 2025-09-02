@@ -16,20 +16,16 @@ type gzipWriter struct {
 }
 
 func (g *gzipWriter) Write(b []byte) (int, error) {
-	if g.compressionFlag {
-		return g.zw.Write(b)
-	}
-
 	contentType := g.Header().Get("Content-Type")
 
 	if strings.Contains(contentType, "application/json") ||
 		strings.Contains(contentType, "text/html") {
-		g.Header().Del("Content-Length")
-		g.Header().Set("Content-Encoding", "gzip")
-		g.compressionFlag = true
+		if !g.compressionFlag {
+			g.Header().Set("Content-Encoding", "gzip")
+			g.compressionFlag = true
+		}
 		return g.zw.Write(b)
 	}
-
 	return g.ResponseWriter.Write(b)
 }
 
