@@ -107,9 +107,12 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 
 			if sendsGzip {
+				originalBody := r.Body
+				defer originalBody.Close()
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
+					r.Body = originalBody
 //					http.Error(w, "Internal Server error", http.StatusInternalServerError)
 //					return
 				}
