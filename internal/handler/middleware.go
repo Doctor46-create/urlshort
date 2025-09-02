@@ -4,7 +4,7 @@ import (
 	"compress/gzip"
 	"net/http"
 	"strings"
-//	"sync"
+	"sync"
 
 	"go.uber.org/zap"
 )
@@ -14,16 +14,20 @@ type gzipWriter struct {
 	zw              *gzip.Writer
 	compressionFlag bool
 }
+
 func (g *gzipWriter) Write(b []byte) (int, error) {
-	contentType := g.Header().Get("Content-Type")
-	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html") {
-		if !g.compressionFlag {
-			g.Header().Set("Content-Encoding", "gzip")
-			g.compressionFlag = true
-		}
+	if g.compressionFlag {
 		return g.zw.Write(b)
 	}
 	return g.ResponseWriter.Write(b)
+}
+
+func (g *gzipWriter) WriteHeader(statusCode int) {
+	contentType := g.Header().Get("Content-Type")
+	if (strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html")) && g.compressionFlag {
+		g.Header().Set("Content-Encoding", "gzip")
+	}
+	g.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (g *gzipWriter) Close() error {
@@ -33,11 +37,11 @@ func (g *gzipWriter) Close() error {
 	return nil
 }
 
-//var gzipWriterPool = sync.Pool{
-//	New: func() any {
-//		return gzip.NewWriter(nil)
-//	},
-//}
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return gzip.NewWriter(nil)
+	},
+}
 
 func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -51,31 +55,28 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 					http.Error(w, "Bad Request: Invalid gzip encoding", http.StatusBadRequest)
 					return
 				}
-				r.Body = gr
 				defer gr.Close()
+				r.Body = gr
 			}
 
-//			ow := w
 			acceptEncoding := r.Header.Get("Accept-Encoding")
-			supportsGzip := (strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != "")
+			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip")
+			
 			if supportsGzip {
-//				zw := gzipWriterPool.Get().(*gzip.Writer)
-//				zw.Reset(w)
-
+				zw := gzipWriterPool.Get().(*gzip.Writer)
+				zw.Reset(w)
+				
 				gzw := &gzipWriter{
 					ResponseWriter:  w,
-					zw:              gzip.NewWriter(w),
-					compressionFlag: false,
+					zw:              zw,
+					compressionFlag: true,
 				}
+				defer func() {
+					gzw.Close()
+					zw.Reset(nil)
+					gzipWriterPool.Put(zw)
+				}()
 				w = gzw
-				defer gzw.Close()
-//				defer func() {
-//					if gzw, ok := ow.(*gzipWriter); ok {
-//						gzw.Close()
-//						zw.Reset(nil)
-//						gzipWriterPool.Put(zw)
-//					}
-//				}()
 			}
 
 			next.ServeHTTP(w, r)
