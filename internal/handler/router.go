@@ -25,6 +25,7 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 	r := chi.NewRouter()
 	
 	r.Use(mylogger.NewLoggerMiddleware(logger))
+	r.Use(CompressionMiddleware(logger))
 	
 	r.Post("/", h.urlHandler.ShortenURL)
 	r.Post("/api/shorten", h.urlHandler.ShortenURLJSON)
