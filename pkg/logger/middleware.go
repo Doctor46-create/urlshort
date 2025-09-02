@@ -2,9 +2,6 @@
 package logger
 
 import (
-	"bufio"
-	"context"
-	"net"
 	"net/http"
 	"time"
 
@@ -52,14 +49,11 @@ func (l *LogMiddleware) HandlerWithRequestID(next http.Handler) http.Handler {
 
 		requestLogger := l.Logger.With(zap.String("request_id", reqID))
 
-		ctx := context.WithValue(r.Context(), "logger", requestLogger)
-		r = r.WithContext(ctx)
-
 		w.Header().Set("X-Request-ID", reqID)
 
 		rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 
-		next.ServeHTTP(rw, r.WithContext(ctx))
+		next.ServeHTTP(rw, r)
 
 		duration := time.Since(start)
 
@@ -88,13 +82,6 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	size, err := rw.ResponseWriter.Write(b)
 	rw.size += size
 	return size, err
-}
-
-func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	if hijacker, ok := rw.ResponseWriter.(http.Hijacker); ok {
-		return hijacker.Hijack()
-	}
-	return nil, nil, http.ErrNotSupported
 }
 
 func (rw *responseWriter) Flush() {
