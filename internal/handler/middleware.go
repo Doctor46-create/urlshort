@@ -18,7 +18,7 @@ type gzipWriter struct {
 func (g *gzipWriter) Write(b []byte) (int, error) {
 	contentType := g.Header().Get("Content-Type")
 
-	if strings.Contains(contentType, "application-json") ||
+	if strings.Contains(contentType, "application/json") ||
 		strings.Contains(contentType, "text/html") ||
 		strings.Contains(contentType, "text/plain") {
 		return g.zw.Write(b)
@@ -28,10 +28,15 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 }
 
 func (g *gzipWriter) WriteHeader(statusCode int) {
-	if g.zw != nil {
-		g.Header().Set("Content-Encoding", "gzip")
-	}
-	g.ResponseWriter.WriteHeader(statusCode)
+    contentType := g.Header().Get("Content-Type")
+    
+    if strings.Contains(contentType, "application/json") ||
+        strings.Contains(contentType, "text/html") || 
+        strings.Contains(contentType, "text/plain") {
+        g.Header().Set("Content-Encoding", "gzip")
+    }
+    
+    g.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (g *gzipWriter) Close() error {
