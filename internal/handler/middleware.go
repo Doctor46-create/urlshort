@@ -2,7 +2,6 @@ package handler
 
 import (
 	"compress/gzip"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
