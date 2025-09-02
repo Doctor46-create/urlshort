@@ -99,9 +99,11 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				ow = gzw
 
 				defer func() {
-					gzw.Close()
-					zw.Reset(nil)
-					gzipWriterPool.Put(zw)
+					if gzw, ok := ow.(*gzipWriter); ok {
+						gzw.Close()
+						zw.Reset(nil)
+						gzipWriterPool.Put(zw)
+					}
 				}()
 			}
 
