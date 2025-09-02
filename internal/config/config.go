@@ -1,3 +1,4 @@
+// Package config
 package config
 
 import (
@@ -10,11 +11,16 @@ import (
 
 type Config struct {
 	App `yaml:"app"`
+	Logger `yaml:"logger"`
 }
 
 type App struct {
 	Address string `yaml:"address" env-default:":8000"`
 	BaseURL string `yaml:"baseURL" env-default:"http://localhost:8080"`
+}
+
+type Logger struct {
+	LogLevel int `yaml:"logLevel" env-default:"0"`
 }
 
 func (c *Config) parseArgs() {
