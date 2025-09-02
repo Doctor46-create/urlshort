@@ -108,9 +108,9 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 //			contentEncoding := r.Header.Get("Content-Encoding")
 			//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
 			contentEncoding := r.Header.Get("Content-Encoding")
-			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
+//			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 
-			if sendsGzip {
+			if contentEncoding == "gzip" {
 				originalBody := r.Body
 				defer originalBody.Close()
 				gr, err := newGzipReader(r.Body)
