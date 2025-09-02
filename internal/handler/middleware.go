@@ -71,7 +71,7 @@ func (g gzipReader) Close() error {
 }
 
 var gzipWriterPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return gzip.NewWriter(nil)
 	},
 }
@@ -101,9 +101,9 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			}
 
 			contentEncoding := r.Header.Get("Content-Encoding")
-			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
+//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
 
-			if sendsGzip {
+			if contentEncoding == "gzip" {
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
