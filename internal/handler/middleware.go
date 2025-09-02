@@ -34,7 +34,9 @@ func (g *gzipWriter) Write(b []byte) (int, error) {
 }
 
 func (g *gzipWriter) WriteHeader(statusCode int) {
-	g.Header().Set("Content-Encoding", "gzip")
+	if g.zw != nil {
+		g.Header().Set("Content-Encoding", "gzip")
+	}
 	g.ResponseWriter.WriteHeader(statusCode)
 }
 
