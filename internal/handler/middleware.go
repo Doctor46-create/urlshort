@@ -85,7 +85,7 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			ow := w
 
 			acceptEncoding := r.Header.Get("Accept-Encoding")
-			supportsGzip := strings.ToLower(acceptEncoding) == "gzip"
+			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip")
 			if supportsGzip {
 				zw := gzipWriterPool.Get().(*gzip.Writer)
 				zw.Reset(w)
@@ -103,10 +103,12 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				}()
 			}
 
-			contentEncoding := r.Header.Get("Content-Encoding")
+//			contentEncoding := r.Header.Get("Content-Encoding")
 			//			sendsGzip := strings.ToLower(contentEncoding) == "gzip"
+			contentEncoding := r.Header.Get("Content-Encoding")
+			sendsGzip := strings.Contains(strings.ToLower(contentEncoding), "gzip")
 
-			if contentEncoding == "gzip" {
+			if sendsGzip {
 				gr, err := newGzipReader(r.Body)
 				if err != nil {
 					logger.Error("Failed to create gzip reader", zap.Error(err))
