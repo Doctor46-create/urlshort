@@ -21,9 +21,10 @@ func Execute() {
 	log.Info("Starting URL shortener service",
 		zap.String("address", cfg.GetAddress()),
 		zap.String("base_url", cfg.GetBaseURL()),
+		zap.String("file_storage_path", cfg.GetFileStoragePath()),
 	)
 
-	repo := repository.NewURLRepository()
+	repo := repository.NewURLRepository(cfg.GetFileStoragePath())
 	srvc := service.NewURLService(repo)
 	handler := handler.NewHandler(srvc, cfg, log) 
 

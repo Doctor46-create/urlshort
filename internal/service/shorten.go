@@ -16,9 +16,9 @@ func NewURLService(repo repository.URLRepository) Shortener {
 	return &urlService{repo: repo}
 }
 
-func (s *urlService) Shorten(originalURL string) (string, error) {
+func (s *urlService) Shorten(originalURL string, requestID string) (string, error) {
 	shortKey := generateShortKey(originalURL)
-	err := s.repo.Save(shortKey, originalURL)
+	err := s.repo.Save(shortKey, originalURL, requestID)
 	if err != nil {
 		return "", err
 	}

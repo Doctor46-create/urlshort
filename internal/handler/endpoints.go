@@ -26,7 +26,10 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	originalURL := string(body)
-	shortKey, err := h.srvc.Shorten(originalURL)
+	
+	requestID := r.Header.Get("X-Request-ID")
+	
+	shortKey, err := h.srvc.Shorten(originalURL, requestID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
 		http.Error(w, "Server error", http.StatusInternalServerError)
@@ -39,7 +42,8 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("URL shortened successfully",
 		zap.String("original_url", originalURL),
-		zap.String("short_key", shortKey))
+		zap.String("short_key", shortKey),
+		zap.String("request_id", requestID))
 }
 
 func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +90,9 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortKey, err := h.srvc.Shorten(newRequest.URL)
+	requestID := r.Header.Get("X-Request-ID")
+	
+	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
 		http.Error(w, "Server error", http.StatusInternalServerError)
@@ -113,5 +119,6 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("JSON URL shortened successfully",
 		zap.String("original_url", newRequest.URL),
-		zap.String("short_key", shortKey))
+		zap.String("short_key", shortKey),
+		zap.String("request_id", requestID))
 }

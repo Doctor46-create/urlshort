@@ -61,7 +61,7 @@ func TestPostHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := repository.NewURLRepository()
+			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
 			h := NewURLHandler(srvc, cfg, logger)
 
@@ -84,10 +84,10 @@ func TestGetHandler(t *testing.T) {
 	logger := testLogger()
 	defer logger.Sync()
 
-	repo := repository.NewURLRepository()
+	repo := repository.NewURLRepository("")
 	srvc := service.NewURLService(repo)
 	originalURL := "www.google.com"
-	shortKey, _ := srvc.Shorten(originalURL)
+	shortKey, _ := srvc.Shorten(originalURL, "")
 
 	tests := []struct {
 		name       string
@@ -103,7 +103,7 @@ func TestGetHandler(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/" + shortKey,
 			setup: func(s service.Shortener) {
-				s.Shorten(originalURL)
+				s.Shorten(originalURL, "")
 			},
 			wantStatus: http.StatusTemporaryRedirect,
 			wantLoc:    originalURL,
@@ -133,7 +133,7 @@ func TestGetHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testRepo := repository.NewURLRepository()
+			testRepo := repository.NewURLRepository("")
 			testSrvc := service.NewURLService(testRepo)
 			testH := NewURLHandler(testSrvc, cfg, logger)
 
@@ -205,7 +205,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := repository.NewURLRepository()
+			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
 			h := NewURLHandler(srvc, cfg, logger)
 
