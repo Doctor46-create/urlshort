@@ -1,5 +1,6 @@
 app:
   address: ":8080"
   baseURL: "http://localhost:8080"
+  fileStoragePath: "short_urls.json"
 logger:
   logLevel: 0

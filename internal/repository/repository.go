@@ -1,4 +1,4 @@
-//Package repository
+// Package repository
 package repository
 
 import (
@@ -25,9 +25,10 @@ func (r *urlRepository) Save(shortKey, url string) error {
 }
 
 func (r *urlRepository) Get(shortKey string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
 	url, exists := r.storage[shortKey]
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	if !exists {
 		return "", fmt.Errorf("URL not found")
 	}
