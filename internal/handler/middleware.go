@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"slices"
 
 	"go.uber.org/zap"
 )
@@ -61,11 +62,11 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 
 			acceptEncoding := r.Header.Get("Accept-Encoding")
 			supportsGzip := strings.Contains(strings.ToLower(acceptEncoding), "gzip") && acceptEncoding != ""
-			
+
 			if supportsGzip {
 				zw := gzipWriterPool.Get().(*gzip.Writer)
 				zw.Reset(w)
-				
+
 				gzw := &gzipWriter{
 					ResponseWriter:  w,
 					zw:              zw,
@@ -82,4 +83,24 @@ func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func MethodAllowed(methods ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if slices.Contains(methods, r.Method) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		})
+	}
+}
+
+func PostOnly(logger *zap.Logger) func(http.Handler) http.Handler {
+	return MethodAllowed(http.MethodPost)
+}
+
+func GetOnly(logger *zap.Logger) func(http.Handler) http.Handler {
+	return MethodAllowed(http.MethodGet)
 }

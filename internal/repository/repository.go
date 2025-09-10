@@ -8,20 +8,23 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/Doctor46-create/urlshort/internal/model"
 )
 
+type fileRecord struct {
+	UUID        string `json:"uuid"`
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
 type urlRepository struct {
-	storage    map[string]string      
-	records    map[string]*model.URLRecord  
-	mu         sync.RWMutex
-	filePath   string
+	storage  map[string]string
+	filePath string
+	mu       sync.RWMutex
 }
 
 func NewURLRepository(filePath string) URLRepository {
 	repo := &urlRepository{
 		storage:  make(map[string]string),
-		records:  make(map[string]*model.URLRecord),
 		filePath: filePath,
 	}
 	
@@ -47,14 +50,17 @@ func (r *urlRepository) Save(shortKey, url string, requestID string) error {
 	}
 	
 	r.storage[shortKey] = url
-	record := &model.URLRecord{
-		UUID:        recordUUID,
-		ShortURL:    shortKey,
-		OriginalURL: url,
-	}
-	r.records[shortKey] = record
 	
-	return r.appendToFile(record)
+	if r.filePath != "" {
+		record := fileRecord{
+			UUID:        recordUUID,
+			ShortURL:    shortKey,
+			OriginalURL: url,
+		}
+		return r.appendToFile(record)
+	}
+	
+	return nil
 }
 
 func (r *urlRepository) Get(shortKey string) (string, error) {
@@ -68,42 +74,50 @@ func (r *urlRepository) Get(shortKey string) (string, error) {
 	return url, nil
 }
 
-func (r *urlRepository) appendToFile(record *model.URLRecord) error {
-	if r.filePath == "" {
-		return nil 
-	}
-	
+func (r *urlRepository) appendToFile(record fileRecord) error {
 	existingRecords, err := r.readAllRecords()
 	if err != nil {
 		return err
 	}
 	
-	existingRecords = append(existingRecords, *record)
+	existingRecords = append(existingRecords, record)
 	
 	return r.writeAllRecords(existingRecords)
 }
 
-func (r *urlRepository) readAllRecords() ([]model.URLRecord, error) {
-	if _, err := os.Stat(r.filePath); os.IsNotExist(err) {
-		return []model.URLRecord{}, nil
+func (r *urlRepository) fileExists() bool {
+	if r.filePath == "" {
+		return false
 	}
-	
+	_, err := os.Stat(r.filePath)
+	return !os.IsNotExist(err)
+}
+
+func (r *urlRepository) readAndParseFile() ([]fileRecord, error) {
 	file, err := os.Open(r.filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file for reading: %w", err)
 	}
 	defer file.Close()
-	
-	var records []model.URLRecord
+
+	var records []fileRecord
 	decoder := json.NewDecoder(file)
 	if err := decoder.Decode(&records); err != nil {
-		return []model.URLRecord{}, nil
+		return nil, fmt.Errorf("failed to decode JSON data: %w", err)
 	}
 	
 	return records, nil
 }
 
-func (r *urlRepository) writeAllRecords(records []model.URLRecord) error {
+func (r *urlRepository) readAllRecords() ([]fileRecord, error) {
+	if !r.fileExists() {
+		return []fileRecord{}, nil
+	}
+	
+	return r.readAndParseFile()
+}
+
+func (r *urlRepository) writeAllRecords(records []fileRecord) error {
 	file, err := os.OpenFile(r.filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open file for writing: %w", err)
@@ -133,11 +147,5 @@ func (r *urlRepository) loadFromFile() {
 	
 	for _, record := range records {
 		r.storage[record.ShortURL] = record.OriginalURL
-		r.records[record.ShortURL] = &model.URLRecord{
-			UUID:        record.UUID,
-			ShortURL:    record.ShortURL,
-			OriginalURL: record.OriginalURL,
-		}
 	}
 }
-

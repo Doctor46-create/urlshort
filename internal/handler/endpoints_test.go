@@ -55,7 +55,7 @@ func TestPostHandler(t *testing.T) {
 			name:       "Wrong method",
 			method:     http.MethodGet,
 			body:       "www.google.com",
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusMethodNotAllowed,
 		},
 	}
 
@@ -63,13 +63,14 @@ func TestPostHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
-			h := NewURLHandler(srvc, cfg, logger)
+			h := NewHandler(srvc, cfg, logger)
+			router := h.InitRouter(logger)
 
 			req, err := http.NewRequest(tt.method, "/", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)
 
 			rr := httptest.NewRecorder()
-			h.ShortenURL(rr, req)
+			router.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
 			if tt.wantContain != "" {
@@ -119,8 +120,8 @@ func TestGetHandler(t *testing.T) {
 			name:       "wrong method",
 			method:     http.MethodPost,
 			path:       "/" + shortKey,
-			wantStatus: http.StatusBadRequest,
-			wantBody:   "Method not allowed\n",
+			wantStatus: http.StatusNotFound,
+			wantBody:   "Not found\n",
 		},
 		{
 			name:       "root path",
@@ -199,7 +200,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 			name:       "Wrong method for JSON",
 			method:     http.MethodGet,
 			body:       `{"url":"https://example.com"}`,
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusMethodNotAllowed,
 		},
 	}
 
@@ -207,14 +208,15 @@ func TestShortenURLJSONHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
-			h := NewURLHandler(srvc, cfg, logger)
+			h := NewHandler(srvc, cfg, logger)
+			router := h.InitRouter(logger)	
 
 			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
-			h.ShortenURLJSON(rr, req)
+			router.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
 			if tt.wantContain != "" {

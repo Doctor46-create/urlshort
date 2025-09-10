@@ -8,7 +8,7 @@ import (
 	"github.com/Doctor46-create/urlshort/internal/handler"
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/Doctor46-create/urlshort/internal/service"
-	"github.com/Doctor46-create/urlshort/pkg/logger"
+	"github.com/Doctor46-create/urlshort/internal/logger"
 	"go.uber.org/zap"
 )
 

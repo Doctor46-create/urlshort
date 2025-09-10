@@ -5,7 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/Doctor46-create/urlshort/internal/config"
-	mylogger "github.com/Doctor46-create/urlshort/pkg/logger" 
+	mylogger "github.com/Doctor46-create/urlshort/internal/logger" 
 	"go.uber.org/zap"
 )
 
@@ -27,8 +27,12 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 	r.Use(mylogger.NewLoggerMiddleware(logger))
 	r.Use(CompressionMiddleware(logger))
 	
-	r.Post("/", h.urlHandler.ShortenURL)
-	r.Post("/api/shorten", h.urlHandler.ShortenURLJSON)
-	r.Get("/{shortKey}", h.urlHandler.RedirectURL)
+	//r.Post("/", h.urlHandler.ShortenURL)
+	//r.Post("/api/shorten", h.urlHandler.ShortenURLJSON)
+	//r.Get("/{shortKey}", h.urlHandler.RedirectURL)
+	r.With(PostOnly(logger)).Post("/", h.urlHandler.ShortenURL)
+	r.With(PostOnly(logger)).Post("/api/shorten", h.urlHandler.ShortenURLJSON)
+	
+	r.With(GetOnly(logger)).Get("/{shortKey}", h.urlHandler.RedirectURL)
 	return r
 }

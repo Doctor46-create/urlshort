@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/go-chi/chi/v5"
@@ -12,12 +11,6 @@ import (
 )
 
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.logger.Error("Method not allowed", zap.String("method", r.Method))
-		http.Error(w, "Method not allowed", http.StatusBadRequest)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Error("Failed to read request body", zap.Error(err))
@@ -47,12 +40,6 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.logger.Error("Method not allowed", zap.String("method", r.Method))
-		http.Error(w, "Method not allowed", http.StatusBadRequest)
-		return
-	}
-
 	shortKey := chi.URLParam(r, "shortKey")
 	originalURL, err := h.srvc.GetOriginal(shortKey)
 	if err != nil {
@@ -70,12 +57,6 @@ func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.logger.Error("Method not allowed", zap.String("method", r.Method))
-		http.Error(w, "Method not allowed", http.StatusBadRequest)
-		return
-	}
-
 	newRequest := &model.JSONRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&newRequest); err != nil {
 		h.logger.Error("Failed to decode JSON request", zap.Error(err))
@@ -115,7 +96,6 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonData)
-	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 
 	h.logger.Info("JSON URL shortened successfully",
 		zap.String("original_url", newRequest.URL),
