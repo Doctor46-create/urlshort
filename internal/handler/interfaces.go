@@ -6,4 +6,5 @@ type URLHandler interface {
 	ShortenURL(w http.ResponseWriter, r *http.Request)
 	RedirectURL(w http.ResponseWriter, r *http.Request)
 	ShortenURLJSON (w http.ResponseWriter, r *http.Request)
+	PingDB(w http.ResponseWriter, r *http.Request)
 }

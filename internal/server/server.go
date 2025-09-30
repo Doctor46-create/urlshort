@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
+	"github.com/Doctor46-create/urlshort/internal/config/db"
 	"github.com/Doctor46-create/urlshort/internal/handler"
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/Doctor46-create/urlshort/internal/service"
@@ -24,9 +25,10 @@ func Execute() {
 		zap.String("file_storage_path", cfg.GetFileStoragePath()),
 	)
 
+	dbConfig := db.NewDBConfig(cfg)
 	repo := repository.NewURLRepository(cfg.GetFileStoragePath())
 	srvc := service.NewURLService(repo)
-	handler := handler.NewHandler(srvc, cfg, log) 
+	handler := handler.NewHandler(srvc, cfg, log, dbConfig) 
 
 	server := &http.Server{
 		Addr:    cfg.GetAddress(),

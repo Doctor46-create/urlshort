@@ -102,3 +102,15 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 		zap.String("short_key", shortKey),
 		zap.String("request_id", requestID))
 }
+
+func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
+	err := h.db.PingDB()
+	if err != nil {
+		h.logger.Error("Database ping failed", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	h.logger.Info("Database ping successful")
+}

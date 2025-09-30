@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
+	"github.com/Doctor46-create/urlshort/internal/config/db"
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -32,10 +33,17 @@ func testLogger() *zap.Logger {
 	return logger
 }
 
+func testDBConfig() *db.DBConfig {
+	return &db.DBConfig{
+		DSN: "",
+	}
+}
+
 func TestPostHandler(t *testing.T) {
 	cfg := testConfig()
 	logger := testLogger()
 	defer logger.Sync()
+	dbConfig := testDBConfig()
 
 	tests := []struct {
 		name        string
@@ -63,7 +71,7 @@ func TestPostHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
-			h := NewHandler(srvc, cfg, logger)
+			h := NewHandler(srvc, cfg, logger, dbConfig)
 			router := h.InitRouter(logger)
 
 			req, err := http.NewRequest(tt.method, "/", bytes.NewBufferString(tt.body))
@@ -84,6 +92,7 @@ func TestGetHandler(t *testing.T) {
 	cfg := testConfig()
 	logger := testLogger()
 	defer logger.Sync()
+	dbConfig := testDBConfig()
 
 	repo := repository.NewURLRepository("")
 	srvc := service.NewURLService(repo)
@@ -136,7 +145,7 @@ func TestGetHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testRepo := repository.NewURLRepository("")
 			testSrvc := service.NewURLService(testRepo)
-			testH := NewURLHandler(testSrvc, cfg, logger)
+			testH := NewURLHandler(testSrvc, cfg, logger, dbConfig)
 
 			if tt.setup != nil {
 				tt.setup(testSrvc)
@@ -169,6 +178,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 	cfg := testConfig()
 	logger := testLogger()
 	defer logger.Sync()
+	dbConfig := testDBConfig()
 
 	tests := []struct {
 		name        string
@@ -208,7 +218,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := repository.NewURLRepository("")
 			srvc := service.NewURLService(repo)
-			h := NewHandler(srvc, cfg, logger)
+			h := NewHandler(srvc, cfg, logger, dbConfig)
 			router := h.InitRouter(logger)	
 
 			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
@@ -222,6 +232,49 @@ func TestShortenURLJSONHandler(t *testing.T) {
 			if tt.wantContain != "" {
 				assert.Contains(t, rr.Body.String(), tt.wantContain)
 			}
+		})
+	}
+}
+
+func TestPingDBHandler(t *testing.T) {
+	cfg := testConfig()
+	logger := testLogger()
+	defer logger.Sync()
+
+	tests := []struct {
+		name       string
+		method     string
+		dbConfig   *db.DBConfig
+		wantStatus int
+	}{
+		{
+			name:       "Successful ping with empty DSN",
+			method:     http.MethodGet,
+			dbConfig:   &db.DBConfig{DSN: ""},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Wrong method",
+			method:     http.MethodPost,
+			dbConfig:   &db.DBConfig{DSN: ""},
+			wantStatus: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := repository.NewURLRepository("")
+			srvc := service.NewURLService(repo)
+			h := NewHandler(srvc, cfg, logger, tt.dbConfig)
+			router := h.InitRouter(logger)
+
+			req, err := http.NewRequest(tt.method, "/ping", nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
 		})
 	}
 }
