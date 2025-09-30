@@ -36,3 +36,18 @@ func (r *urlRepository) Get(shortKey string) (string, error) {
 	}
 	return url, nil
 }
+
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+	if len(shortKeys) != len(urls) {
+		return fmt.Errorf("shortKeys and urls must have the same length")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range shortKeys {
+		r.storage[shortKeys[i]] = urls[i]
+	}
+
+	return nil
+}

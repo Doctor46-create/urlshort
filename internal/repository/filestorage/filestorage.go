@@ -149,3 +149,46 @@ func (r *urlRepository) loadFromFile() {
 		r.storage[record.ShortURL] = record.OriginalURL
 	}
 }
+
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+	if len(shortKeys) != len(urls) {
+		return fmt.Errorf("shortKeys and urls must have the same length")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existingRecords, err := r.readAllRecords()
+	if err != nil {
+		return err
+	}
+
+	for i := range shortKeys {
+		if existingURL, exists := r.storage[shortKeys[i]]; exists {
+			if existingURL != urls[i] {
+				return fmt.Errorf("short key %s already exists", shortKeys[i])
+			}
+			continue
+		}
+
+		r.storage[shortKeys[i]] = urls[i]
+
+		recordUUID := requestID
+		if recordUUID == "" {
+			recordUUID = uuid.New().String()
+		}
+
+		record := fileRecord{
+			UUID:        recordUUID,
+			ShortURL:    shortKeys[i],
+			OriginalURL: urls[i],
+		}
+		existingRecords = append(existingRecords, record)
+	}
+
+	if r.filePath != "" {
+		return r.writeAllRecords(existingRecords)
+	}
+
+	return nil
+}

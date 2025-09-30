@@ -33,6 +33,7 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 	// r.Get("/{shortKey}", h.urlHandler.RedirectURL)
 	r.With(PostOnly(logger)).Post("/", h.urlHandler.ShortenURL)
 	r.With(PostOnly(logger)).Post("/api/shorten", h.urlHandler.ShortenURLJSON)
+	r.With(PostOnly(logger)).Post("/api/shorten/batch", h.urlHandler.ShortenBatchURL)
 
 	r.With(GetOnly(logger)).Get("/{shortKey}", h.urlHandler.RedirectURL)
 	r.With(GetOnly(logger)).Get("/ping", h.urlHandler.PingDB)

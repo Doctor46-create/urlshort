@@ -66,3 +66,39 @@ func (r *urlRepository) Save(shortKey, url string, requestID string) error {
 
 	return nil
 }
+
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+	if len(shortKeys) != len(urls) {
+		return fmt.Errorf("shortKeys and urls must have the same length")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+
+	stmt, err := tx.Prepare(r.Queries.SaveURL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for i, shortKey := range shortKeys {
+		_, err := stmt.Exec(shortKey, urls[i], now)
+		if err != nil {
+			return fmt.Errorf("failed to save URL batch item: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}

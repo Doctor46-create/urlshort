@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -120,4 +121,70 @@ func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	h.logger.Info("Database ping successful")
+}
+
+func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		http.Error(w, "Unsupported media type", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	var requestItems []model.BatchRequestItem
+	if err := json.NewDecoder(r.Body).Decode(&requestItems); err != nil {
+		h.logger.Error("Failed to decode batch request", zap.Error(err))
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if len(requestItems) == 0 {
+		http.Error(w, "Empty batch", http.StatusBadRequest)
+		return
+	}
+
+	for _, item := range requestItems {
+		if item.OriginalURL == "" {
+			http.Error(w, "Empty URL in batch", http.StatusBadRequest)
+			return
+		}
+	}
+
+	requestID := r.Header.Get("X-Request-ID")
+
+	results, err := h.srvc.ShortenBatch(requestItems, requestID)
+	if err != nil {
+		h.logger.Error("Failed to shorten URL batch", 
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		http.Error(w, "Failed to shorten URLs", http.StatusInternalServerError)
+		return
+	}
+
+	responseWithFullURL := make([]model.BatchResponseItem, len(results))
+	for i, result := range results {
+		responseWithFullURL[i] = model.BatchResponseItem{
+			CorrelationID: result.CorrelationID,
+			ShortURL:      fmt.Sprintf("%s/%s", h.cfg.GetBaseURL(), result.ShortURL),
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	
+	if err := json.NewEncoder(w).Encode(responseWithFullURL); err != nil {
+		h.logger.Error("Failed to encode batch response", 
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.logger.Info("URL batch shortened successfully",
+		zap.Int("count", len(responseWithFullURL)),
+		zap.String("request_id", requestID))
 }
