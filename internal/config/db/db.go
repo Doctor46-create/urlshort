@@ -8,6 +8,7 @@ import (
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/jackc/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type DBConfig struct {
@@ -45,4 +46,24 @@ func (d *DBConfig) PingDB() error {
 
 	fmt.Println("Database connection successful")
 	return nil
+}
+
+func NewDatabase(dbConf *DBConfig) (*Database, error) {
+	if dbConf.DSN == "" {
+		return nil, fmt.Errorf("DSN is empty")
+	}
+
+	db, err := sql.Open("pgx", dbConf.DSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open connection: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to verify connection: %w", err)
+	}
+
+	return &Database{
+		DB:     db,
+		config: dbConf,
+	}, nil
 }

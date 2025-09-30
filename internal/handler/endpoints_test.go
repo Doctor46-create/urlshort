@@ -8,6 +8,7 @@ import (
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/Doctor46-create/urlshort/internal/config/db"
+	"github.com/Doctor46-create/urlshort/internal/repository/memory"
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -37,6 +38,10 @@ func testDBConfig() *db.DBConfig {
 	return &db.DBConfig{
 		DSN: "",
 	}
+}
+
+func testRepo() repository.URLRepository {
+	return memory.NewURLRepository()
 }
 
 func TestPostHandler(t *testing.T) {
@@ -69,7 +74,7 @@ func TestPostHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := repository.NewURLRepository("")
+			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, dbConfig)
 			router := h.InitRouter(logger)
@@ -94,7 +99,7 @@ func TestGetHandler(t *testing.T) {
 	defer logger.Sync()
 	dbConfig := testDBConfig()
 
-	repo := repository.NewURLRepository("")
+	repo := testRepo()
 	srvc := service.NewURLService(repo)
 	originalURL := "www.google.com"
 	shortKey, _ := srvc.Shorten(originalURL, "")
@@ -143,7 +148,7 @@ func TestGetHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testRepo := repository.NewURLRepository("")
+			testRepo := testRepo()
 			testSrvc := service.NewURLService(testRepo)
 			testH := NewURLHandler(testSrvc, cfg, logger, dbConfig)
 
@@ -216,7 +221,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := repository.NewURLRepository("")
+			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, dbConfig)
 			router := h.InitRouter(logger)	
@@ -263,7 +268,7 @@ func TestPingDBHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := repository.NewURLRepository("")
+			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, tt.dbConfig)
 			router := h.InitRouter(logger)
