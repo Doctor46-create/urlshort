@@ -19,9 +19,9 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	originalURL := string(body)
-	
+
 	requestID := r.Header.Get("X-Request-ID")
-	
+
 	shortKey, err := h.srvc.Shorten(originalURL, requestID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
@@ -72,7 +72,7 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requestID := r.Header.Get("X-Request-ID")
-	
+
 	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID)
 	if err != nil {
 		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
@@ -104,6 +104,13 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		h.logger.Info("PingDB called but no database configured")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("No database configured"))
+		return
+	}
+
 	err := h.db.PingDB()
 	if err != nil {
 		h.logger.Error("Database ping failed", zap.Error(err))
