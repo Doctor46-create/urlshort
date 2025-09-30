@@ -26,6 +26,10 @@ func NewDBConfig(c *config.Config) *DBConfig {
 }
 
 func (d *DBConfig) PingDB() error {
+	if d.DSN == "" {
+		return nil
+	}
+
 	conn, err := pgx.Connect(context.Background(), d.DSN)
 	if err != nil {
 		log.Printf("Error creating connection: %v", err)
