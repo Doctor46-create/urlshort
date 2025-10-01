@@ -56,9 +56,6 @@ func (r *urlRepository) Get(shortURL string) (string, error) {
 }
 
 func (r *urlRepository) FindByOriginalURL(originalURL string) (string, error) {
-    r.mu.RLock()
-    defer r.mu.RUnlock()
-
     var shortURL string
     err := r.DB.QueryRow(r.Queries.FindByOriginalURL, originalURL).Scan(&shortURL)
     if err != nil {
