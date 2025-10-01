@@ -37,16 +37,22 @@ func (r *urlRepository) Save(shortKey, url string, requestID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	recordUUID := requestID
-	if recordUUID == "" {
-		recordUUID = uuid.New().String()
+	for existingShortKey, existingURL := range r.storage {
+		if existingURL == url {
+			return repository.NewURLConflictError(existingShortKey)
+		}
 	}
 
 	if existingURL, exists := r.storage[shortKey]; exists {
 		if existingURL == url {
-			return nil
+			return nil 
 		}
-		return fmt.Errorf("short key already exists")
+		return fmt.Errorf("short key already exists for different URL")
+	}
+
+	recordUUID := requestID
+	if recordUUID == "" {
+		recordUUID = uuid.New().String()
 	}
 
 	r.storage[shortKey] = url
@@ -72,6 +78,69 @@ func (r *urlRepository) Get(shortKey string) (string, error) {
 		return "", fmt.Errorf("URL not found")
 	}
 	return url, nil
+}
+
+func (r *urlRepository) FindByOriginalURL(originalURL string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for shortKey, url := range r.storage {
+		if url == originalURL {
+			return shortKey, nil
+		}
+	}
+
+	return "", fmt.Errorf("URL not found")
+}
+
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+	if len(shortKeys) != len(urls) {
+		return fmt.Errorf("shortKeys and urls must have the same length")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i, url := range urls {
+		for existingShortKey, existingURL := range r.storage {
+			if existingURL == url {
+				return repository.NewURLConflictError(existingShortKey)
+			}
+		}
+
+		if existingURL, exists := r.storage[shortKeys[i]]; exists {
+			if existingURL != urls[i] {
+				return fmt.Errorf("short key %s already exists for different URL", shortKeys[i])
+			}
+		}
+	}
+
+	existingRecords, err := r.readAllRecords()
+	if err != nil {
+		return err
+	}
+
+	for i := range shortKeys {
+		r.storage[shortKeys[i]] = urls[i]
+
+		recordUUID := requestID
+		if recordUUID == "" {
+			recordUUID = uuid.New().String()
+		}
+
+		record := fileRecord{
+			UUID:        recordUUID,
+			ShortURL:    shortKeys[i],
+			OriginalURL: urls[i],
+		}
+		existingRecords = append(existingRecords, record)
+	}
+
+	if r.filePath != "" {
+		return r.writeAllRecords(existingRecords)
+	}
+
+	return nil
 }
 
 func (r *urlRepository) appendToFile(record fileRecord) error {
@@ -148,47 +217,4 @@ func (r *urlRepository) loadFromFile() {
 	for _, record := range records {
 		r.storage[record.ShortURL] = record.OriginalURL
 	}
-}
-
-func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
-	if len(shortKeys) != len(urls) {
-		return fmt.Errorf("shortKeys and urls must have the same length")
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	existingRecords, err := r.readAllRecords()
-	if err != nil {
-		return err
-	}
-
-	for i := range shortKeys {
-		if existingURL, exists := r.storage[shortKeys[i]]; exists {
-			if existingURL != urls[i] {
-				return fmt.Errorf("short key %s already exists", shortKeys[i])
-			}
-			continue
-		}
-
-		r.storage[shortKeys[i]] = urls[i]
-
-		recordUUID := requestID
-		if recordUUID == "" {
-			recordUUID = uuid.New().String()
-		}
-
-		record := fileRecord{
-			UUID:        recordUUID,
-			ShortURL:    shortKeys[i],
-			OriginalURL: urls[i],
-		}
-		existingRecords = append(existingRecords, record)
-	}
-
-	if r.filePath != "" {
-		return r.writeAllRecords(existingRecords)
-	}
-
-	return nil
 }

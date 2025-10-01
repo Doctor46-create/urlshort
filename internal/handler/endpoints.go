@@ -1,12 +1,13 @@
 package handler
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
+	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -20,11 +21,28 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	originalURL := string(body)
+	if originalURL == "" {
+		h.logger.Error("Empty URL in request")
+		http.Error(w, "Empty URL", http.StatusBadRequest)
+		return
+	}
 
 	requestID := r.Header.Get("X-Request-ID")
 
 	shortKey, err := h.srvc.Shorten(originalURL, requestID)
 	if err != nil {
+		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte(h.cfg.GetBaseURL() + "/" + existingShortKey))
+
+			h.logger.Info("URL already exists",
+				zap.String("original_url", originalURL),
+				zap.String("short_key", existingShortKey),
+				zap.String("request_id", requestID))
+			return
+		}
+
 		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
 		http.Error(w, "Server error", http.StatusInternalServerError)
 		return
@@ -76,15 +94,36 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID)
 	if err != nil {
+		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
+			response := model.JSONResponse{
+				Result: h.cfg.GetBaseURL() + "/" + existingShortKey,
+			}
+
+			jsonData, err := json.Marshal(response)
+			if err != nil {
+				h.logger.Error("Failed to marshal JSON response", zap.Error(err))
+				http.Error(w, "Server error", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			w.Write(jsonData)
+
+			h.logger.Info("URL already exists (JSON)",
+				zap.String("original_url", newRequest.URL),
+				zap.String("short_key", existingShortKey),
+				zap.String("request_id", requestID))
+			return
+		}
+
 		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
 		http.Error(w, "Server error", http.StatusInternalServerError)
 		return
 	}
 
-	fullShortURL := h.cfg.GetBaseURL() + "/" + shortKey
-
 	response := model.JSONResponse{
-		Result: fullShortURL,
+		Result: h.cfg.GetBaseURL() + "/" + shortKey,
 	}
 
 	jsonData, err := json.Marshal(response)
@@ -120,6 +159,7 @@ func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Database is available"))
 	h.logger.Info("Database ping successful")
 }
 
@@ -158,7 +198,16 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 
 	results, err := h.srvc.ShortenBatch(requestItems, requestID)
 	if err != nil {
-		h.logger.Error("Failed to shorten URL batch", 
+		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
+			h.logger.Error("Batch contains duplicate URL",
+				zap.Error(err),
+				zap.String("existing_short_key", existingShortKey),
+				zap.String("request_id", requestID))
+			http.Error(w, fmt.Sprintf("Duplicate URL found with short key: %s", existingShortKey), http.StatusConflict)
+			return
+		}
+
+		h.logger.Error("Failed to shorten URL batch",
 			zap.Error(err),
 			zap.String("request_id", requestID))
 		http.Error(w, "Failed to shorten URLs", http.StatusInternalServerError)
@@ -169,15 +218,15 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 	for i, result := range results {
 		responseWithFullURL[i] = model.BatchResponseItem{
 			CorrelationID: result.CorrelationID,
-			ShortURL:      fmt.Sprintf("%s/%s", h.cfg.GetBaseURL(), result.ShortURL),
+			ShortURL:      h.cfg.GetBaseURL() + "/" + result.ShortURL,
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	
+
 	if err := json.NewEncoder(w).Encode(responseWithFullURL); err != nil {
-		h.logger.Error("Failed to encode batch response", 
+		h.logger.Error("Failed to encode batch response",
 			zap.Error(err),
 			zap.String("request_id", requestID))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

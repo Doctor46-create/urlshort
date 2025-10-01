@@ -1,12 +1,12 @@
-// Package service
 package service
 
 import (
-	"fmt"
 	"crypto/sha256"
 	"encoding/base64"
-	"github.com/Doctor46-create/urlshort/internal/repository"
+	"fmt"
+
 	"github.com/Doctor46-create/urlshort/internal/model"
+	"github.com/Doctor46-create/urlshort/internal/repository"
 )
 
 type urlService struct {
@@ -21,7 +21,10 @@ func (s *urlService) Shorten(originalURL string, requestID string) (string, erro
 	shortKey := s.generateShortKey(originalURL)
 	err := s.repo.Save(shortKey, originalURL, requestID)
 	if err != nil {
-		return "", err
+		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
+			return existingShortKey, err
+		}
+		return "", fmt.Errorf("failed to shorten URL: %w", err)
 	}
 	return shortKey, nil
 }
@@ -29,7 +32,7 @@ func (s *urlService) Shorten(originalURL string, requestID string) (string, erro
 func (s *urlService) GetOriginal(shortKey string) (string, error) {
 	url, err := s.repo.Get(shortKey)
 	if err != nil {
-		return "", fmt.Errorf("URL not found")
+		return "", fmt.Errorf("URL not found: %w", err)
 	}
 	return url, nil
 }
@@ -39,18 +42,28 @@ func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID stri
 		return nil, fmt.Errorf("empty batch")
 	}
 
-	results := make([]model.BatchResponseItem, 0, len(items))
+	shortKeys := make([]string, len(items))
+	urls := make([]string, len(items))
+	
+	for i, item := range items {
+		shortKeys[i] = s.generateShortKey(item.OriginalURL)
+		urls[i] = item.OriginalURL
+	}
 
-	for _, item := range items {
-		shortKey, err := s.Shorten(item.OriginalURL, requestID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to shorten URL for correlation_id %s: %w", item.CorrelationID, err)
+	err := s.repo.SaveBatch(shortKeys, urls, requestID)
+	if err != nil {
+		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
+			return nil, fmt.Errorf("batch contains duplicate URL with short key %s: %w", existingShortKey, err)
 		}
+		return nil, fmt.Errorf("failed to shorten URL batch: %w", err)
+	}
 
-		results = append(results, model.BatchResponseItem{
-			CorrelationID: item.CorrelationID,
-			ShortURL:      shortKey, 
-		})
+	results := make([]model.BatchResponseItem, len(items))
+	for i, shortKey := range shortKeys {
+		results[i] = model.BatchResponseItem{
+			CorrelationID: items[i].CorrelationID,
+			ShortURL:      shortKey,
+		}
 	}
 
 	return results, nil
