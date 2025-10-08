@@ -294,8 +294,7 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i := range urls {
-		fullShortURL := h.cfg.GetBaseURL() + "/" + urls[i].ShortURL
-		urls[i].ShortURL = fullShortURL
+		urls[i].ShortURL = h.cfg.GetBaseURL() + "/" + urls[i].ShortURL
 	}
 
 	h.logger.Info("Successfully retrieved user URLs", zap.String("user_id", userID), zap.Int("url_count", len(urls)))

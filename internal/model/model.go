@@ -2,7 +2,7 @@
 package model
 
 type JSONRequest struct {
-	URL string `json:"url" validate:"required,url"`  
+	URL string `json:"url" validate:"required,url"`
 }
 
 type JSONResponse struct {
@@ -20,6 +20,6 @@ type BatchResponseItem struct {
 }
 
 type UserURL struct {
-	ShortURL    string
-	OriginalURL string
+	ShortURL    string `json:"ShortURL"`
+	OriginalURL string `json:"OriginalURL"`
 }
