@@ -7,4 +7,5 @@ type URLRepository interface {
 	Get(shortKey string) (string, error)
 	SaveBatch(shortKeys, urls []string, requestID string, userID string) error
 	GetUserURLs(userID string) ([]model.UserURL, error)
+	DeleteURLs(userID string, urlIDs []string)
 }

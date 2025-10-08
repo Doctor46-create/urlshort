@@ -9,4 +9,5 @@ type URLHandler interface {
 	PingDB(w http.ResponseWriter, r *http.Request)
 	ShortenBatchURL(w http.ResponseWriter, r *http.Request)
 	GetUserURLs(w http.ResponseWriter, r *http.Request)
+	DeleteURLs(w http.ResponseWriter, r *http.Request)
 }

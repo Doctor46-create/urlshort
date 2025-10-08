@@ -1,8 +1,10 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 type SQLQueries struct {
@@ -17,29 +20,37 @@ type SQLQueries struct {
 	SaveURL           string
 	FindByOriginalURL string
 	GetUserURLs       string
+	DeleteURLs        string
 }
 
 var queries = SQLQueries{
-	GetURL: `SELECT long_url FROM short_urls WHERE short_url = $1`,
+	GetURL: `SELECT long_url, COALESCE(is_deleted, false) FROM short_urls WHERE short_url = $1`,
 	SaveURL: `
         INSERT INTO short_urls (short_url, long_url, created_at, user_id)
         VALUES ($1, $2, $3, $4)
     `,
 	FindByOriginalURL: `SELECT short_url FROM short_urls WHERE long_url = $1`,
 	GetUserURLs:       `SELECT short_url, long_url FROM short_urls WHERE user_id = $1 ORDER BY created_at DESC`,
+	DeleteURLs: `UPDATE short_urls SET is_deleted = true 
+        			 WHERE user_id = $1 AND short_url = ANY($2) AND is_deleted = false`,
 }
 
 type urlRepository struct {
-	DB      *sql.DB
-	Queries SQLQueries
-	mu      sync.RWMutex
+	DB            *sql.DB
+	Queries       SQLQueries
+	mu            sync.RWMutex
+	DeleteChannel chan model.DeleteURL
+	WG            sync.WaitGroup
 }
 
 func NewURLRepository(db *sql.DB) repository.URLRepository {
-	return &urlRepository{
-		DB:      db,
-		Queries: queries,
+	repo := &urlRepository{
+		DB:            db,
+		Queries:       queries,
+		DeleteChannel: make(chan model.DeleteURL, 1000),
 	}
+	repo.initDeletionWorkers(context.Background())
+	return repo
 }
 
 func (r *urlRepository) Get(shortURL string) (string, error) {
@@ -47,12 +58,17 @@ func (r *urlRepository) Get(shortURL string) (string, error) {
 	defer r.mu.RUnlock()
 
 	var longURL string
-	err := r.DB.QueryRow(r.Queries.GetURL, shortURL).Scan(&longURL)
+	var deleted bool
+	err := r.DB.QueryRow(r.Queries.GetURL, shortURL).Scan(&longURL, &deleted)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("URL not found")
 		}
 		return "", fmt.Errorf("error getting URL: %w", err)
+	}
+
+	if deleted {
+		return "", model.ErrURLIsDeleted
 	}
 
 	return longURL, nil
@@ -157,4 +173,92 @@ func (r *urlRepository) GetUserURLs(userID string) ([]model.UserURL, error) {
 	}
 
 	return urls, nil
+}
+
+func (r *urlRepository) initDeletionWorkers(ctx context.Context) {
+	const numWorkers = 3
+	for i := 0; i < numWorkers; i++ {
+		r.WG.Add(1)
+		go func(id int) {
+			defer r.WG.Done()
+			log.Printf("Worker %d started", id)
+			r.deleteWorker(ctx)
+		}(i)
+	}
+}
+
+func (r *urlRepository) deleteWorker(ctx context.Context) {
+	const batchSize = 100
+	const batchTimeout = 2 * time.Second
+
+	taskBuffer := make([]model.DeleteURL, 0, batchSize)
+	timer := time.NewTimer(batchTimeout)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			r.processBatch(taskBuffer)
+			return
+		case task, ok := <-r.DeleteChannel:
+			if !ok {
+				r.processBatch(taskBuffer)
+				return
+			}
+			taskBuffer = append(taskBuffer, task)
+			if len(taskBuffer) >= batchSize {
+				r.processBatch(taskBuffer)
+				taskBuffer = taskBuffer[:0]
+				timer.Reset(batchTimeout)
+			}
+		case <-timer.C:
+			if len(taskBuffer) > 0 {
+				r.processBatch(taskBuffer)
+				taskBuffer = taskBuffer[:0]
+			}
+			timer.Reset(batchTimeout)
+		}
+	}
+}
+
+func (r *urlRepository) processBatch(tasks []model.DeleteURL) {
+	if len(tasks) == 0 {
+		return
+	}
+
+	groups := make(map[string][]string, len(tasks))
+	for _, task := range tasks {
+		groups[task.UserID] = append(groups[task.UserID], task.ShortURL)
+	}
+
+	for userID, shortURLs := range groups {
+		if err := r.batchDeleteURLs(userID, shortURLs); err != nil {
+			log.Printf("Failed to delete URLs for user %s: %v", userID, err)
+		}
+	}
+}
+
+func (r *urlRepository) batchDeleteURLs(userID string, shortURLs []string) error {
+	if len(shortURLs) == 0 {
+		return nil
+	}
+
+	_, err := r.DB.Exec(r.Queries.DeleteURLs, userID, pq.Array(shortURLs))
+	return err
+}
+
+func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) {
+	for _, shortURL := range urlIDs {
+		task := model.DeleteURL{UserID: userID, ShortURL: shortURL}
+		select {
+		case r.DeleteChannel <- task:
+		default:
+			log.Printf("Delete channel full, dropping task for URL: %s", shortURL)
+		}
+	}
+}
+
+func (r *urlRepository) Shutdown() {
+	close(r.DeleteChannel)
+	r.WG.Wait()
 }

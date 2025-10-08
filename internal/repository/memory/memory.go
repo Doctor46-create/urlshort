@@ -81,3 +81,7 @@ func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string, us
 func (r *urlRepository) GetUserURLs(userID string) ([]model.UserURL, error) {
 	return nil, fmt.Errorf("GetUserURLs not implemented for file storage")
 }
+
+func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) {
+	fmt.Print("DeteleUrls not implemented for in-memory storage")
+}

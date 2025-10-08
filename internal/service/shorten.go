@@ -92,3 +92,7 @@ func (s *urlService) generateShortKey(originalURL string) string {
 func (s *urlService) GetUserURLs(userID string) ([]model.UserURL, error) {
 	return s.repo.GetUserURLs(userID)
 }
+
+func (s *urlService) DeleteURLs(userID string, shortURLs []string) {
+	s.repo.DeleteURLs(userID, shortURLs)
+}

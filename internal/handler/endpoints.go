@@ -68,6 +68,11 @@ func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	shortKey := chi.URLParam(r, "shortKey")
 	originalURL, err := h.srvc.GetOriginal(shortKey)
 	if err != nil {
+		if errors.Is(err, model.ErrURLIsDeleted) {
+			h.logger.Error("URL has been deleted", zap.Error(err))
+			http.Error(w, "Deleted", http.StatusGone)
+			return
+		}
 		h.logger.Error("URL not found", zap.Error(err), zap.String("short_key", shortKey))
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
@@ -307,4 +312,29 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(urls); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 	}
+}
+
+func (h *urlHandler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userIDInterface := ctx.Value(userIDKey)
+	userID, ok := userIDInterface.(string)
+	if !ok {
+		h.logger.Error("Failed to get user ID from context")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var shortURLs []string
+	if err := json.NewDecoder(r.Body).Decode(&shortURLs); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	h.srvc.DeleteURLs(userID, shortURLs)
+
+	w.WriteHeader(http.StatusAccepted)
+	h.logger.Info("URLs queued for deletion",
+		zap.String("user_id", userID),
+		zap.Strings("short_urls", shortURLs))
 }
