@@ -20,6 +20,6 @@ type BatchResponseItem struct {
 }
 
 type UserURL struct {
-	ShortURL    string `json:"ShortURL"`
-	OriginalURL string `json:"OriginalURL"`
+	ShortURL    string `json:"short_Uurl"`
+	OriginalURL string `json:"original_url"`
 }
