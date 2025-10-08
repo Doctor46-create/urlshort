@@ -14,9 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
-
 	ctx := r.Context()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -257,9 +255,9 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	h.logger.Info("Context values check",
-    zap.Any("user_id_in_ctx", ctx.Value(userIDKey)),
-    zap.Any("had_cookie_in_ctx", ctx.Value(hadCookieKey)),
-    zap.Any("cookie_valid_in_ctx", ctx.Value(cookieWasValidKey)))
+		zap.Any("user_id_in_ctx", ctx.Value(userIDKey)),
+		zap.Any("had_cookie_in_ctx", ctx.Value(hadCookieKey)),
+		zap.Any("cookie_valid_in_ctx", ctx.Value(cookieWasValidKey)))
 
 	hadCookie, _ := ctx.Value(hadCookieKey).(bool)
 	cookieWasValid, _ := ctx.Value(cookieWasValidKey).(bool)
@@ -301,7 +299,11 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Info("Successfully retrieved user URLs", zap.String("user_id", userID), zap.Int("url_count", len(urls)))
-	render.Status(r, http.StatusOK)
-	render.JSON(w, r, urls)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(urls); err != nil {
+		h.logger.Error("Failed to encode response", zap.Error(err))
+	}
+	// render.Status(r, http.StatusOK)
+	// render.JSON(w, r, urls)
 }
-
