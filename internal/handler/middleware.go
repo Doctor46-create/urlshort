@@ -49,6 +49,14 @@ var gzipWriterPool = sync.Pool{
 	},
 }
 
+type contextKey string
+
+const (
+	userIDKey         contextKey = "user_id"
+	cookieWasValidKey contextKey = "cookie_was_valid"
+	hadCookieKey      contextKey = "had_cookie"
+)
+
 func CompressionMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,9 +181,9 @@ func AuthMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 			})
 
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, "user_id", userID)
-			ctx = context.WithValue(ctx, "cookie_was_valid", isValid)
-			ctx = context.WithValue(ctx, "had_cookie", hadCookie)
+			ctx = context.WithValue(ctx, userIDKey, userID)
+			ctx = context.WithValue(ctx, cookieWasValidKey, isValid)
+			ctx = context.WithValue(ctx, hadCookieKey, hadCookie)
 
 			logger.Info("Context set",
 				zap.String("user_id", userID),
