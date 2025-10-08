@@ -2,15 +2,18 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
-	"github.com/Doctor46-create/urlshort/internal/repository"
+	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"go.uber.org/zap"
 )
+
 
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -31,16 +34,19 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	shortKey, err := h.srvc.Shorten(originalURL, requestID)
 	if err != nil {
-		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusConflict)
-			w.Write([]byte(h.cfg.GetBaseURL() + "/" + existingShortKey))
+		if errors.Is(err, service.ErrURLAlreadyShortened) {
+			conflictErr := &service.URLAlreadyShortenedError{}
+			if errors.As(err, &conflictErr) {
+				w.Header().Set("Content-Type", "text/plain")
+				w.WriteHeader(http.StatusConflict)
+				w.Write([]byte(h.cfg.GetBaseURL() + "/" + conflictErr.ShortKey))
 
-			h.logger.Info("URL already exists",
-				zap.String("original_url", originalURL),
-				zap.String("short_key", existingShortKey),
-				zap.String("request_id", requestID))
-			return
+				h.logger.Info("URL already exists",
+					zap.String("original_url", originalURL),
+					zap.String("short_key", conflictErr.ShortKey),
+					zap.String("request_id", requestID))
+				return
+			}
 		}
 
 		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
@@ -94,27 +100,30 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID)
 	if err != nil {
-		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
-			response := model.JSONResponse{
-				Result: h.cfg.GetBaseURL() + "/" + existingShortKey,
-			}
+		if errors.Is(err, service.ErrURLAlreadyShortened) {
+			conflictErr := &service.URLAlreadyShortenedError{}
+			if errors.As(err, &conflictErr) {
+				response := model.JSONResponse{
+					Result: h.cfg.GetBaseURL() + "/" + conflictErr.ShortKey,
+				}
 
-			jsonData, err := json.Marshal(response)
-			if err != nil {
-				h.logger.Error("Failed to marshal JSON response", zap.Error(err))
-				http.Error(w, "Server error", http.StatusInternalServerError)
+				jsonData, err := json.Marshal(response)
+				if err != nil {
+					h.logger.Error("Failed to marshal JSON response", zap.Error(err))
+					http.Error(w, "Server error", http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				w.Write(jsonData)
+
+				h.logger.Info("URL already exists (JSON)",
+					zap.String("original_url", newRequest.URL),
+					zap.String("short_key", conflictErr.ShortKey),
+					zap.String("request_id", requestID))
 				return
 			}
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusConflict)
-			w.Write(jsonData)
-
-			h.logger.Info("URL already exists (JSON)",
-				zap.String("original_url", newRequest.URL),
-				zap.String("short_key", existingShortKey),
-				zap.String("request_id", requestID))
-			return
 		}
 
 		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
@@ -198,13 +207,16 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 
 	results, err := h.srvc.ShortenBatch(requestItems, requestID)
 	if err != nil {
-		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
-			h.logger.Error("Batch contains duplicate URL",
-				zap.Error(err),
-				zap.String("existing_short_key", existingShortKey),
-				zap.String("request_id", requestID))
-			http.Error(w, fmt.Sprintf("Duplicate URL found with short key: %s", existingShortKey), http.StatusConflict)
-			return
+		if errors.Is(err, service.ErrURLAlreadyShortened) {
+			conflictErr := &service.URLAlreadyShortenedError{}
+			if errors.As(err, &conflictErr) {
+				h.logger.Error("Batch contains duplicate URL",
+					zap.Error(err),
+					zap.String("existing_short_key", conflictErr.ShortKey),
+					zap.String("request_id", requestID))
+				http.Error(w, fmt.Sprintf("Duplicate URL found with short key: %s", conflictErr.ShortKey), http.StatusConflict)
+				return
+			}
 		}
 
 		h.logger.Error("Failed to shorten URL batch",
@@ -237,3 +249,51 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 		zap.Int("count", len(responseWithFullURL)),
 		zap.String("request_id", requestID))
 }
+
+func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	hadCookie, _ := ctx.Value("had_cookie").(bool)
+	cookieWasValid, _ := ctx.Value("cookie_was_valid").(bool)
+
+	if hadCookie && !cookieWasValid {
+		h.logger.Warn("Unauthorized access: invalid cookie")
+		render.Status(r, http.StatusUnauthorized)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	userIDInterface := ctx.Value("user_id")
+	userID, ok := userIDInterface.(string)
+	if !ok || userID == "" {
+		h.logger.Error("Failed to get user_id from context")
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	urls, err := h.srvc.GetUserURLs(userID)
+	if err != nil {
+		h.logger.Error("Failed to retrieve user URLs", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	if len(urls) == 0 {
+		h.logger.Info("No URLs found for user", zap.String("user_id", userID))
+		render.Status(r, http.StatusNoContent)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	for i := range urls {
+		fullShortURL := h.cfg.GetBaseURL() + "/" + urls[i].ShortURL
+		urls[i].ShortURL = fullShortURL
+	}
+
+	h.logger.Info("Successfully retrieved user URLs", zap.String("user_id", userID), zap.Int("url_count", len(urls)))
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, urls)
+}
+

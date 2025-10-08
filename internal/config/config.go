@@ -55,14 +55,6 @@ func (c *Config) GetDSN() string {
 func GetConfig() *Config {
 	var cfg Config
 
-	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
-		cfg.DSN = envDSN
-	}
-
-	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
-		cfg.FileStoragePath = envFileStoragePath
-	}
-
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
 		log.Println("CONFIG_PATH is not declared and is set to default")
@@ -73,14 +65,6 @@ func GetConfig() *Config {
 		if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
 			log.Fatalf("cannot read config: %s", err)
 		}
-	}
-
-	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
-		cfg.FileStoragePath = envFileStoragePath
-	}
-
-	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
-		cfg.DSN = envDSN
 	}
 
 	cfg.parseArgs()

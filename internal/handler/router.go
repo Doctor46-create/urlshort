@@ -27,6 +27,7 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 
 	r.Use(mylogger.NewLoggerMiddleware(logger))
 	r.Use(CompressionMiddleware(logger))
+	r.Use(AuthMiddleware(logger))
 
 	r.With(PostOnly(logger)).Post("/", h.urlHandler.ShortenURL)
 	r.With(PostOnly(logger)).Post("/api/shorten", h.urlHandler.ShortenURLJSON)
@@ -34,5 +35,6 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 
 	r.With(GetOnly(logger)).Get("/{shortKey}", h.urlHandler.RedirectURL)
 	r.With(GetOnly(logger)).Get("/ping", h.urlHandler.PingDB)
+	r.With(GetOnly(logger)).Get("/api/user/urls", h.urlHandler.GetUserURLs)
 	return r
 }

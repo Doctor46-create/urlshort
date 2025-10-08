@@ -3,11 +3,26 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/Doctor46-create/urlshort/internal/repository"
 )
+
+var ErrURLAlreadyShortened = errors.New("URL already shortened")
+
+type URLAlreadyShortenedError struct {
+	ShortKey string
+}
+
+func (e *URLAlreadyShortenedError) Error() string {
+	return fmt.Sprintf("URL already shortened: %s", e.ShortKey)
+}
+
+func (e *URLAlreadyShortenedError) Unwrap() error {
+	return ErrURLAlreadyShortened
+}
 
 type urlService struct {
 	repo repository.URLRepository
@@ -22,7 +37,7 @@ func (s *urlService) Shorten(originalURL string, requestID string) (string, erro
 	err := s.repo.Save(shortKey, originalURL, requestID)
 	if err != nil {
 		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
-			return existingShortKey, err
+			return existingShortKey, &URLAlreadyShortenedError{ShortKey: existingShortKey}
 		}
 		return "", fmt.Errorf("failed to shorten URL: %w", err)
 	}
@@ -44,7 +59,7 @@ func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID stri
 
 	shortKeys := make([]string, len(items))
 	urls := make([]string, len(items))
-	
+
 	for i, item := range items {
 		shortKeys[i] = s.generateShortKey(item.OriginalURL)
 		urls[i] = item.OriginalURL
@@ -72,4 +87,8 @@ func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID stri
 func (s *urlService) generateShortKey(originalURL string) string {
 	hash := sha256.Sum256([]byte(originalURL))
 	return base64.URLEncoding.EncodeToString(hash[:])[:8]
+}
+
+func (s *urlService) GetUserURLs(userID string) ([]model.UserURL, error) {
+	return s.repo.GetUserURLs(userID)
 }

@@ -2,11 +2,16 @@ package handler
 
 import (
 	"compress/gzip"
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
-	"slices"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -103,4 +108,81 @@ func PostOnly(logger *zap.Logger) func(http.Handler) http.Handler {
 
 func GetOnly(logger *zap.Logger) func(http.Handler) http.Handler {
 	return MethodAllowed(http.MethodGet)
+}
+
+const secretKey = "guess_whos_back"
+
+func validateCookie(cookieValue string) (string, bool) {
+	parts := strings.Split(cookieValue, ".")
+	if len(parts) != 2 {
+		return "", false
+	}
+	userID, signature := parts[0], parts[1]
+
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write([]byte(userID))
+	expectedSignature := mac.Sum(nil)
+
+	receivedSignature, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return "", false
+	}
+
+	return userID, hmac.Equal(receivedSignature, expectedSignature)
+}
+
+func signUserID(userID string) string {
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write([]byte(userID))
+	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	return userID + "." + signature
+}
+
+func AuthMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var userID string
+			var isValid bool
+			var hadCookie bool
+
+			cookie, err := r.Cookie("user_id")
+			hadCookie = (err == nil && cookie != nil && cookie.Value != "")
+
+			if !hadCookie {
+				userID = uuid.New().String()
+				isValid = false
+			} else {
+				userID, isValid = validateCookie(cookie.Value)
+				if !isValid {
+					userID = uuid.New().String()
+				}
+			}
+
+			signedValue := signUserID(userID)
+			logger.Info("Setting cookie",
+				zap.String("cookie_name", "user_id"),
+				zap.String("cookie_value", signedValue))
+
+			http.SetCookie(w, &http.Cookie{
+				Name:     "user_id",
+				Value:    signedValue,
+				MaxAge:   3600 * 24 * 30,
+				Path:     "/",
+				Secure:   false,
+				HttpOnly: true,
+			})
+
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, "user_id", userID)
+			ctx = context.WithValue(ctx, "cookie_was_valid", isValid)
+			ctx = context.WithValue(ctx, "had_cookie", hadCookie)
+
+			logger.Info("Context set",
+				zap.String("user_id", userID),
+				zap.Bool("cookie_was_valid", isValid),
+				zap.Bool("had_cookie", hadCookie))
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }

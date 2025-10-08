@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Doctor46-create/urlshort/internal/repository"
+	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/google/uuid"
 )
 
@@ -217,4 +218,8 @@ func (r *urlRepository) loadFromFile() {
 	for _, record := range records {
 		r.storage[record.ShortURL] = record.OriginalURL
 	}
+}
+
+func (r *urlRepository) GetUserURLs(userID string) ([]model.UserURL, error) {
+	return nil, fmt.Errorf("GetUserURLs not implemented for file storage")
 }

@@ -8,4 +8,5 @@ type URLHandler interface {
 	ShortenURLJSON (w http.ResponseWriter, r *http.Request)
 	PingDB(w http.ResponseWriter, r *http.Request)
 	ShortenBatchURL(w http.ResponseWriter, r *http.Request)
+	GetUserURLs(w http.ResponseWriter, r *http.Request)
 }
