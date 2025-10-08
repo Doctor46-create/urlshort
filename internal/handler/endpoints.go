@@ -307,6 +307,4 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(urls); err != nil {
 		h.logger.Error("Failed to encode response", zap.Error(err))
 	}
-	// render.Status(r, http.StatusOK)
-	// render.JSON(w, r, urls)
 }
