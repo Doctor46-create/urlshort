@@ -102,7 +102,7 @@ func TestGetHandler(t *testing.T) {
 	repo := testRepo()
 	srvc := service.NewURLService(repo)
 	originalURL := "www.google.com"
-	shortKey, _ := srvc.Shorten(originalURL, "")
+	shortKey, _ := srvc.Shorten(originalURL, "", "46")
 
 	tests := []struct {
 		name       string
@@ -118,7 +118,7 @@ func TestGetHandler(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/" + shortKey,
 			setup: func(s service.Shortener) {
-				s.Shorten(originalURL, "")
+				s.Shorten(originalURL, "", "46")
 			},
 			wantStatus: http.StatusTemporaryRedirect,
 			wantLoc:    originalURL,

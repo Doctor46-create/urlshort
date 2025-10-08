@@ -22,11 +22,11 @@ type SQLQueries struct {
 var queries = SQLQueries{
 	GetURL: `SELECT long_url FROM short_urls WHERE short_url = $1`,
 	SaveURL: `
-        INSERT INTO short_urls (short_url, long_url, created_at)
-        VALUES ($1, $2, $3)
+        INSERT INTO short_urls (short_url, long_url, created_at, user_id)
+        VALUES ($1, $2, $3, $4)
     `,
 	FindByOriginalURL: `SELECT short_url FROM short_urls WHERE long_url = $1`,
-	GetUserURLs:       `SELECT short_url, long_url FROM shortened_urls WHERE user_id = $1 ORDER BY created_at DESC`,
+	GetUserURLs:       `SELECT short_url, long_url FROM short_urls WHERE user_id = $1 ORDER BY created_at DESC`,
 }
 
 type urlRepository struct {
@@ -71,12 +71,12 @@ func (r *urlRepository) FindByOriginalURL(originalURL string) (string, error) {
 	return shortURL, nil
 }
 
-func (r *urlRepository) Save(shortKey, url string, requestID string) error {
+func (r *urlRepository) Save(shortKey, url string, requestID string, userID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	now := time.Now()
-	_, err := r.DB.Exec(r.Queries.SaveURL, shortKey, url, now)
+	_, err := r.DB.Exec(r.Queries.SaveURL, shortKey, url, now, userID)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok {
 			if pgErr.Code == pgerrcode.UniqueViolation {
@@ -93,7 +93,7 @@ func (r *urlRepository) Save(shortKey, url string, requestID string) error {
 	return nil
 }
 
-func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string, userID string) error {
 	if len(shortKeys) != len(urls) {
 		return fmt.Errorf("shortKeys and urls must have the same length")
 	}
@@ -123,7 +123,7 @@ func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) er
 	defer stmt.Close()
 
 	for i, shortKey := range shortKeys {
-		_, err := stmt.Exec(shortKey, urls[i], now)
+		_, err := stmt.Exec(shortKey, urls[i], now, userID)
 		if err != nil {
 			return fmt.Errorf("failed to save URL batch item: %w", err)
 		}

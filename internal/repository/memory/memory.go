@@ -21,7 +21,7 @@ func NewURLRepository() repository.URLRepository {
 	}
 }
 
-func (r *urlRepository) Save(shortKey, url string, requestID string) error {
+func (r *urlRepository) Save(shortKey, url string, requestID string, userID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -56,7 +56,7 @@ func (r *urlRepository) FindByOriginalURL(originalURL string) (string, error) {
 	return shortKey, nil
 }
 
-func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string) error {
+func (r *urlRepository) SaveBatch(shortKeys, urls []string, requestID string, userID string) error {
 	if len(shortKeys) != len(urls) {
 		return fmt.Errorf("shortKeys and urls must have the same length")
 	}

@@ -16,6 +16,8 @@ import (
 
 
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.logger.Error("Failed to read request body", zap.Error(err))
@@ -32,7 +34,7 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	requestID := r.Header.Get("X-Request-ID")
 
-	shortKey, err := h.srvc.Shorten(originalURL, requestID)
+	shortKey, err := h.srvc.Shorten(originalURL, requestID, ctx.Value(userIDKey).(string))
 	if err != nil {
 		if errors.Is(err, service.ErrURLAlreadyShortened) {
 			conflictErr := &service.URLAlreadyShortenedError{}
@@ -82,6 +84,7 @@ func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	newRequest := &model.JSONRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&newRequest); err != nil {
 		h.logger.Error("Failed to decode JSON request", zap.Error(err))
@@ -98,7 +101,7 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	requestID := r.Header.Get("X-Request-ID")
 
-	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID)
+	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID, ctx.Value(userIDKey).(string))
 	if err != nil {
 		if errors.Is(err, service.ErrURLAlreadyShortened) {
 			conflictErr := &service.URLAlreadyShortenedError{}
@@ -173,6 +176,7 @@ func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -205,7 +209,7 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 
 	requestID := r.Header.Get("X-Request-ID")
 
-	results, err := h.srvc.ShortenBatch(requestItems, requestID)
+	results, err := h.srvc.ShortenBatch(requestItems, requestID, ctx.Value(userIDKey).(string))
 	if err != nil {
 		if errors.Is(err, service.ErrURLAlreadyShortened) {
 			conflictErr := &service.URLAlreadyShortenedError{}
@@ -252,9 +256,13 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 
 func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.logger.Info("Context values check",
+    zap.Any("user_id_in_ctx", ctx.Value(userIDKey)),
+    zap.Any("had_cookie_in_ctx", ctx.Value(hadCookieKey)),
+    zap.Any("cookie_valid_in_ctx", ctx.Value(cookieWasValidKey)))
 
-	hadCookie, _ := ctx.Value("had_cookie").(bool)
-	cookieWasValid, _ := ctx.Value("cookie_was_valid").(bool)
+	hadCookie, _ := ctx.Value(hadCookieKey).(bool)
+	cookieWasValid, _ := ctx.Value(cookieWasValidKey).(bool)
 
 	if hadCookie && !cookieWasValid {
 		h.logger.Warn("Unauthorized access: invalid cookie")
@@ -263,7 +271,7 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDInterface := ctx.Value("user_id")
+	userIDInterface := ctx.Value(userIDKey)
 	userID, ok := userIDInterface.(string)
 	if !ok || userID == "" {
 		h.logger.Error("Failed to get user_id from context")

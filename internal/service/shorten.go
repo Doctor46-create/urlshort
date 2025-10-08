@@ -32,9 +32,9 @@ func NewURLService(repo repository.URLRepository) Shortener {
 	return &urlService{repo: repo}
 }
 
-func (s *urlService) Shorten(originalURL string, requestID string) (string, error) {
+func (s *urlService) Shorten(originalURL string, requestID string, userID string) (string, error) {
 	shortKey := s.generateShortKey(originalURL)
-	err := s.repo.Save(shortKey, originalURL, requestID)
+	err := s.repo.Save(shortKey, originalURL, requestID, userID)
 	if err != nil {
 		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
 			return existingShortKey, &URLAlreadyShortenedError{ShortKey: existingShortKey}
@@ -52,7 +52,7 @@ func (s *urlService) GetOriginal(shortKey string) (string, error) {
 	return url, nil
 }
 
-func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID string) ([]model.BatchResponseItem, error) {
+func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID string, userID string) ([]model.BatchResponseItem, error) {
 	if len(items) == 0 {
 		return nil, fmt.Errorf("empty batch")
 	}
@@ -65,7 +65,7 @@ func (s *urlService) ShortenBatch(items []model.BatchRequestItem, requestID stri
 		urls[i] = item.OriginalURL
 	}
 
-	err := s.repo.SaveBatch(shortKeys, urls, requestID)
+	err := s.repo.SaveBatch(shortKeys, urls, requestID, userID)
 	if err != nil {
 		if existingShortKey, isConflict := repository.IsURLConflictError(err); isConflict {
 			return nil, fmt.Errorf("batch contains duplicate URL with short key %s: %w", existingShortKey, err)
