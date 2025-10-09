@@ -166,7 +166,7 @@ func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.db.PingDB()
+	err := h.srvc.PingDB()
 	if err != nil {
 		h.logger.Error("Database ping failed", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

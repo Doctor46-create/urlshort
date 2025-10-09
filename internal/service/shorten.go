@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/Doctor46-create/urlshort/internal/repository"
@@ -95,4 +96,15 @@ func (s *urlService) GetUserURLs(userID string) ([]model.UserURL, error) {
 
 func (s *urlService) DeleteURLs(userID string, shortURLs []string) {
 	s.repo.DeleteURLs(userID, shortURLs)
+}
+
+func (s *urlService) PingDB() error {
+	err := s.repo.PingDB()
+	if err != nil {
+		log.Printf("Error connecting to database: %v", err)
+		return err
+	}
+
+	fmt.Println("Database connection successful")
+	return nil
 }

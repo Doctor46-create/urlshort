@@ -1,6 +1,9 @@
 package repository
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type URLConflictError struct {
 	ExistingShortURL string
@@ -21,3 +24,4 @@ func IsURLConflictError(err error) (string, bool) {
 	return "", false
 }
 
+var ErrNotSupported = errors.New("operation not supported")

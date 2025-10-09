@@ -12,6 +12,7 @@ import (
 	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/lib/pq"
 )
 
@@ -41,6 +42,7 @@ type urlRepository struct {
 	mu            sync.RWMutex
 	DeleteChannel chan model.DeleteURL
 	WG            sync.WaitGroup
+	shutdown      chan struct{}
 }
 
 func NewURLRepository(db *sql.DB) repository.URLRepository {
@@ -48,6 +50,7 @@ func NewURLRepository(db *sql.DB) repository.URLRepository {
 		DB:            db,
 		Queries:       queries,
 		DeleteChannel: make(chan model.DeleteURL, 1000),
+		shutdown:      make(chan struct{}),
 	}
 	repo.initDeletionWorkers(context.Background())
 	return repo
@@ -175,15 +178,99 @@ func (r *urlRepository) GetUserURLs(userID string) ([]model.UserURL, error) {
 	return urls, nil
 }
 
+func (r *urlRepository) fanInWorker(ctx context.Context, inputs []chan model.DeleteURL, output chan<- model.DeleteURL) {
+	defer close(output)
+
+	var wg sync.WaitGroup
+
+	forward := func(input <-chan model.DeleteURL) {
+		defer wg.Done()
+		for task := range input {
+			select {
+			case output <- task:
+			case <-ctx.Done():
+				return
+			case <-r.shutdown:
+				return
+			}
+		}
+	}
+
+	wg.Add(len(inputs))
+	for _, input := range inputs {
+		go forward(input)
+	}
+
+	wg.Wait()
+}
+
 func (r *urlRepository) initDeletionWorkers(ctx context.Context) {
 	const numWorkers = 3
-	for i := 0; i < numWorkers; i++ {
+	const numInputChannels = 5
+
+	inputChannels := make([]chan model.DeleteURL, numInputChannels)
+	for i := range inputChannels {
+		inputChannels[i] = make(chan model.DeleteURL, 200)
+	}
+
+	fanInOutput := make(chan model.DeleteURL, 1000)
+	go r.fanInWorker(ctx, inputChannels, fanInOutput)
+
+	r.DeleteChannel = fanInOutput
+
+	for id := range numWorkers {
 		r.WG.Add(1)
 		go func(id int) {
 			defer r.WG.Done()
-			log.Printf("Worker %d started", id)
+			log.Printf("Deletion worker %d started", id)
 			r.deleteWorker(ctx)
-		}(i)
+		}(id)
+	}
+
+	r.WG.Add(1)
+	go func() {
+		defer r.WG.Done()
+		r.taskDistributor(ctx, inputChannels)
+	}()
+}
+
+func (r *urlRepository) taskDistributor(ctx context.Context, inputs []chan model.DeleteURL) {
+	var counter uint64
+
+	for {
+		select {
+		case <-ctx.Done():
+			for _, input := range inputs {
+				close(input)
+			}
+			return
+		case <-r.shutdown:
+			for _, input := range inputs {
+				close(input)
+			}
+			return
+		case task, ok := <-r.DeleteChannel:
+			if !ok {
+				for _, input := range inputs {
+					close(input)
+				}
+				return
+			}
+
+			idx := counter % uint64(len(inputs))
+			counter++
+
+			select {
+			case inputs[idx] <- task:
+			case <-time.After(100 * time.Millisecond):
+				log.Printf("Failed to distribute deletion task after timeout: user=%s, url=%s",
+					task.UserID, task.ShortURL)
+			case <-ctx.Done():
+				return
+			case <-r.shutdown:
+				return
+			}
+		}
 	}
 }
 
@@ -247,18 +334,32 @@ func (r *urlRepository) batchDeleteURLs(userID string, shortURLs []string) error
 	return err
 }
 
-func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) {
+func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) error {
 	for _, shortURL := range urlIDs {
 		task := model.DeleteURL{UserID: userID, ShortURL: shortURL}
+
 		select {
 		case r.DeleteChannel <- task:
-		default:
-			log.Printf("Delete channel full, dropping task for URL: %s", shortURL)
+		case <-time.After(1 * time.Second):
+			return fmt.Errorf("deletion service is overloaded, try again later")
 		}
 	}
+	return nil
 }
 
 func (r *urlRepository) Shutdown() {
+	close(r.shutdown)
 	close(r.DeleteChannel)
 	r.WG.Wait()
+	log.Printf("Deletion service shutdown completed")
+}
+
+func (r *urlRepository) PingDB() error {
+	if err := r.DB.Ping(); err != nil {
+		log.Printf("Error connecting to database: %v", err)
+		return err
+	}
+
+	fmt.Println("Database connection successful")
+	return nil
 }

@@ -1,13 +1,15 @@
 package logger
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 )
 
-func NewLogger(config *config.Config) *zap.Logger {
+func NewLogger(config *config.Config) (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
 	cfg.Sampling = nil
 	cfg.DisableStacktrace = true
@@ -17,8 +19,8 @@ func NewLogger(config *config.Config) *zap.Logger {
 
 	logger, err := cfg.Build()
 	if err != nil {
-		logger.Fatal("logger init error")
+		return nil, fmt.Errorf("build logger config: %w", err)
 	}
 
-	return logger
+	return logger, nil
 }

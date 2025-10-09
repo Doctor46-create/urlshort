@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	defaultLogger "log"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/Doctor46-create/urlshort/internal/config/db"
@@ -19,7 +20,10 @@ import (
 func Execute() {
 	cfg := config.GetConfig()
 
-	log := logger.NewLogger(cfg)
+	log, logErr := logger.NewLogger(cfg)
+	if logErr != nil {
+		defaultLogger.Fatalf("Failed to create logger: %v", logErr)
+	}
 	defer log.Sync()
 
 	log.Info("Starting URL shortener service",
