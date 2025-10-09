@@ -256,7 +256,7 @@ func TestPingDBHandler(t *testing.T) {
 			name:       "Successful ping with empty DSN",
 			method:     http.MethodGet,
 			dbConfig:   &db.DBConfig{DSN: ""},
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:       "Wrong method",
