@@ -6,8 +6,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/Doctor46-create/urlshort/internal/model"
+	"github.com/Doctor46-create/urlshort/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -46,7 +46,7 @@ func (r *urlRepository) Save(shortKey, url string, requestID string, userID stri
 
 	if existingURL, exists := r.storage[shortKey]; exists {
 		if existingURL == url {
-			return nil 
+			return nil
 		}
 		return fmt.Errorf("short key already exists for different URL")
 	}

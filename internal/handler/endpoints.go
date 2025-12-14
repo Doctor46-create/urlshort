@@ -302,11 +302,11 @@ func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 		urls[i].ShortURL = h.cfg.GetBaseURL() + "/" + urls[i].ShortURL
 	}
 
-	h.logger.Info("Successfully retrieved user URLs", 
+	h.logger.Info("Successfully retrieved user URLs",
 		zap.Any("urls_data", urls),
-		zap.String("user_id", userID), 
-		zap.Int("url_count", 
-		len(urls)))
+		zap.String("user_id", userID),
+		zap.Int("url_count",
+			len(urls)))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(urls); err != nil {

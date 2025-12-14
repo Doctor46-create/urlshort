@@ -8,8 +8,8 @@ import (
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/Doctor46-create/urlshort/internal/config/db"
-	"github.com/Doctor46-create/urlshort/internal/repository/memory"
 	"github.com/Doctor46-create/urlshort/internal/repository"
+	"github.com/Doctor46-create/urlshort/internal/repository/memory"
 	"github.com/Doctor46-create/urlshort/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -224,7 +224,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, dbConfig, nil)
-			router := h.InitRouter(logger)	
+			router := h.InitRouter(logger)
 
 			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)

@@ -52,23 +52,23 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 
 func (h *Handler) pprofRouter() chi.Router {
 	r := chi.NewRouter()
-	
+
 	r.Use(h.pprofAuthMiddleware)
-	
+
 	r.Get("/pprof", pprof.Index)
-	
+
 	r.Get("/pprof/cmdline", pprof.Cmdline)
 	r.Get("/pprof/profile", pprof.Profile)
 	r.Get("/pprof/symbol", pprof.Symbol)
 	r.Get("/pprof/trace", pprof.Trace)
-	
+
 	r.Get("/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
 	r.Get("/pprof/heap", pprof.Handler("heap").ServeHTTP)
 	r.Get("/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
 	r.Get("/pprof/block", pprof.Handler("block").ServeHTTP)
 	r.Get("/pprof/mutex", pprof.Handler("mutex").ServeHTTP)
 	r.Get("/pprof/allocs", pprof.Handler("allocs").ServeHTTP)
-	
+
 	return r
 }
 

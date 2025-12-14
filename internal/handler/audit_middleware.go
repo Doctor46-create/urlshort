@@ -78,8 +78,8 @@ func shouldAudit(r *http.Request, statusCode int) bool {
 		return true
 	case r.URL.Path == "/api/shorten" && r.Method == http.MethodPost:
 		return true
-	case len(r.URL.Path) > 1 && r.Method == http.MethodGet && r.URL.Path != "/ping" && 
-	     r.URL.Path != "/api/user/urls" && !strings.HasPrefix(r.URL.Path, "/api/"):
+	case len(r.URL.Path) > 1 && r.Method == http.MethodGet && r.URL.Path != "/ping" &&
+		r.URL.Path != "/api/user/urls" && !strings.HasPrefix(r.URL.Path, "/api/"):
 		return true
 	default:
 		return false
@@ -155,7 +155,7 @@ func sendAuditEvent(r *http.Request, statusCode int, originalURL string, subject
 	if url != "" {
 		event := audit.NewEvent(action, userID, url)
 		subject.NotifyAll(event)
-		
+
 		logger.Debug("Audit event sent",
 			zap.String("action", string(action)),
 			zap.String("user_id", userID),

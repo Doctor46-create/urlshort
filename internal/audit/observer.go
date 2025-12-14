@@ -39,7 +39,7 @@ func (s *Subject) NotifyAll(event *AuditEvent) {
 func (s *Subject) CloseAll() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	for _, observer := range s.observers {
 		observer.Close()
 	}
@@ -96,10 +96,10 @@ func (f *FileObserver) Close() error {
 }
 
 type HTTPObserver struct {
-	url     string
-	client  *http.Client
-	closed  bool
-	mu      sync.Mutex
+	url    string
+	client *http.Client
+	closed bool
+	mu     sync.Mutex
 }
 
 func NewHTTPObserver(url string) *HTTPObserver {
