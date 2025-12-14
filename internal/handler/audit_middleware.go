@@ -33,7 +33,7 @@ func (arw *auditResponseWriter) Write(b []byte) (int, error) {
 	return arw.ResponseWriter.Write(b)
 }
 
-func AuditMiddleware(subject *audit.Subject, cfg config.ServiceConfig, logger *zap.Logger) func(http.Handler) http.Handler {
+func AuditMiddleware(subject *audit.Subject, logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if subject == nil {
 			logger.Debug("Audit disabled, skipping audit middleware")
