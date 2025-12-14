@@ -12,6 +12,7 @@ type Config struct {
 	App    `yaml:"app"`
 	Logger `yaml:"logger"`
 	DB     `yaml:"db"`
+	Audit  `yaml:"audit"`
 }
 
 type App struct {
@@ -28,11 +29,18 @@ type DB struct {
 	DSN string `yaml:"dsn" env:"DATABASE_DSN"`
 }
 
+type Audit struct {
+	AuditFile string `yaml:"auditFile" env:"AUDIT_FILE" env-default:""`
+	AuditURL  string `yaml:"auditURL" env:"AUDIT_URL" env-default:""`
+}
+
 func (c *Config) parseArgs() {
 	flag.StringVar(&c.Address, "a", c.Address, "Host")
 	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base url")
 	flag.StringVar(&c.FileStoragePath, "f", c.FileStoragePath, "File storage path")
 	flag.StringVar(&c.DSN, "d", c.DSN, "Database DSN")
+	flag.StringVar(&c.AuditFile, "audit-file", c.AuditFile, "Audit file path")
+	flag.StringVar(&c.AuditURL, "audit-url", c.AuditURL, "Audit server URL")
 	flag.Parse()
 }
 
@@ -50,6 +58,14 @@ func (c *Config) GetFileStoragePath() string {
 
 func (c *Config) GetDSN() string {
 	return c.DSN
+}
+
+func (c *Config) GetAuditFile() string {
+	return c.AuditFile
+}
+
+func (c *Config) GetAuditURL() string {
+	return c.AuditURL
 }
 
 func GetConfig() *Config {
@@ -75,6 +91,14 @@ func GetConfig() *Config {
 
 	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
 		cfg.DSN = envDSN
+	}
+
+	if envAuditFile := os.Getenv("AUDIT_FILE"); envAuditFile != "" {
+		cfg.AuditFile = envAuditFile
+	}
+
+	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
+		cfg.AuditURL = envAuditURL
 	}
 
 	log.Printf("Final DSN: %s", cfg.DSN)

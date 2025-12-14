@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/Doctor46-create/urlshort/internal/audit"
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/Doctor46-create/urlshort/internal/config/db"
 	mylogger "github.com/Doctor46-create/urlshort/internal/logger"
@@ -10,8 +11,9 @@ import (
 )
 
 type Handler struct {
-	urlHandler URLHandler
-	logger     *zap.Logger
+	urlHandler   URLHandler
+	logger       *zap.Logger
+	auditSubject *audit.Subject
 }
 
 func NewHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Logger, dbConfig *db.DBConfig) *Handler {
@@ -27,6 +29,7 @@ func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
 	r.Use(mylogger.NewLoggerMiddleware(logger))
 	r.Use(CompressionMiddleware(logger))
 	r.Use(AuthMiddleware(logger))
+	r.Use(AuditMiddleware(h.auditSubject, logger))
 
 	r.With(PostOnly(logger)).Post("/", h.urlHandler.ShortenURL)
 	r.With(PostOnly(logger)).Post("/api/shorten", h.urlHandler.ShortenURLJSON)
