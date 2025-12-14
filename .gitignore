@@ -25,3 +25,5 @@ vendor/
 
 # File with URLs
 short_urls.json
+scripts
+Makefile
