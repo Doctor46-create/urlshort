@@ -83,7 +83,7 @@ func Execute() {
 	}
 
 	srvc := service.NewURLService(repo)
-	handler := handler.NewHandler(srvc, cfg, log, dbConfig)
+	handler := handler.NewHandler(srvc, cfg, log, dbConfig, auditSubject)
 
 	server := &http.Server{
 		Addr:    cfg.GetAddress(),

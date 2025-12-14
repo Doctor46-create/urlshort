@@ -95,7 +95,6 @@ func (f *FileObserver) Close() error {
 	return f.file.Close()
 }
 
-// HTTPObserver - наблюдатель для отправки на удаленный сервер
 type HTTPObserver struct {
 	url     string
 	client  *http.Client

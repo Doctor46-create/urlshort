@@ -76,7 +76,7 @@ func TestPostHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
-			h := NewHandler(srvc, cfg, logger, dbConfig)
+			h := NewHandler(srvc, cfg, logger, dbConfig, nil)
 			router := h.InitRouter(logger)
 
 			req, err := http.NewRequest(tt.method, "/", bytes.NewBufferString(tt.body))
@@ -150,7 +150,7 @@ func TestGetHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testRepo := testRepo()
 			testSrvc := service.NewURLService(testRepo)
-			testH := NewURLHandler(testSrvc, cfg, logger, dbConfig)
+			testH := NewURLHandler(testSrvc, cfg, logger, dbConfig, nil)
 
 			if tt.setup != nil {
 				tt.setup(testSrvc)
@@ -223,7 +223,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
-			h := NewHandler(srvc, cfg, logger, dbConfig)
+			h := NewHandler(srvc, cfg, logger, dbConfig, nil)
 			router := h.InitRouter(logger)	
 
 			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
@@ -270,7 +270,7 @@ func TestPingDBHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
-			h := NewHandler(srvc, cfg, logger, tt.dbConfig)
+			h := NewHandler(srvc, cfg, logger, tt.dbConfig, nil)
 			router := h.InitRouter(logger)
 
 			req, err := http.NewRequest(tt.method, "/ping", nil)

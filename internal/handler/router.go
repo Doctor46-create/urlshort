@@ -16,9 +16,9 @@ type Handler struct {
 	auditSubject *audit.Subject
 }
 
-func NewHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Logger, dbConfig *db.DBConfig) *Handler {
+func NewHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Logger, dbConfig *db.DBConfig, auditSubject *audit.Subject) *Handler {
 	return &Handler{
-		urlHandler: NewURLHandler(srvc, cfg, logger, dbConfig),
+		urlHandler: NewURLHandler(srvc, cfg, logger, dbConfig, auditSubject),
 		logger:     logger,
 	}
 }
