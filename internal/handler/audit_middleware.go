@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Doctor46-create/urlshort/internal/audit"
-	"github.com/Doctor46-create/urlshort/internal/config"
 	"go.uber.org/zap"
 )
 
