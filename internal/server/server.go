@@ -1,3 +1,6 @@
+// Package server provides the entry point for starting the URL shortening HTTP server.
+// It handles configuration loading, logger initialization, audit setup,
+// storage selection (database, file, or in-memory), and HTTP server lifecycle.
 package server
 
 import (
@@ -18,6 +21,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// Execute starts the URL shortener HTTP server with the configuration
+// loaded from environment variables and command-line flags.
+// It initializes:
+//   - structured logging via Zap,
+//   - optional audit logging (to file and/or HTTP endpoint),
+//   - persistent storage (database, file, or in-memory),
+//   - URL shortening service and HTTP handlers,
+//   - and finally launches the HTTP server.
+//
+// The function blocks until the server fails to start or crashes.
+// It does not support graceful shutdown in its current form.
+// On fatal error, it terminates the program using log.Fatal.
 func Execute() {
 	cfg := config.GetConfig()
 
@@ -93,8 +108,7 @@ func Execute() {
 	log.Info("Server started successfully")
 
 	if auditSubject != nil {
-		go func() {
-			<-make(chan struct{})
+		defer func() {
 			log.Info("Shutting down audit...")
 			auditSubject.CloseAll()
 		}()
