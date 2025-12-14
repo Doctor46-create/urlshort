@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Doctor46-create/urlshort/internal/audit"
+	"github.com/Doctor46-create/urlshort/internal/config"
 	"go.uber.org/zap"
 )
 
@@ -32,8 +33,13 @@ func (arw *auditResponseWriter) Write(b []byte) (int, error) {
 	return arw.ResponseWriter.Write(b)
 }
 
-func AuditMiddleware(subject *audit.Subject, logger *zap.Logger) func(http.Handler) http.Handler {
+func AuditMiddleware(subject *audit.Subject, cfg config.ServiceConfig, logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		if subject == nil {
+			logger.Debug("Audit disabled, skipping audit middleware")
+			return next
+		}
+
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var originalURL string
 			if r.Method == http.MethodPost && (r.URL.Path == "/" || r.URL.Path == "/api/shorten") {
@@ -73,8 +79,8 @@ func shouldAudit(r *http.Request, statusCode int) bool {
 		return true
 	case r.URL.Path == "/api/shorten" && r.Method == http.MethodPost:
 		return true
-	case len(r.URL.Path) > 1 && r.Method == http.MethodGet && r.URL.Path != "/ping" &&
-		r.URL.Path != "/api/user/urls" && !strings.HasPrefix(r.URL.Path, "/api/"):
+	case len(r.URL.Path) > 1 && r.Method == http.MethodGet && r.URL.Path != "/ping" && 
+	     r.URL.Path != "/api/user/urls" && !strings.HasPrefix(r.URL.Path, "/api/"):
 		return true
 	default:
 		return false
@@ -147,14 +153,10 @@ func sendAuditEvent(r *http.Request, statusCode int, originalURL string, subject
 		}
 	}
 
-	if action == audit.ActionFollow && originalURL == "" {
-		url = r.URL.String()
-	}
-
 	if url != "" {
 		event := audit.NewEvent(action, userID, url)
 		subject.NotifyAll(event)
-
+		
 		logger.Debug("Audit event sent",
 			zap.String("action", string(action)),
 			zap.String("user_id", userID),

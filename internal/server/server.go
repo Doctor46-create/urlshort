@@ -1,9 +1,10 @@
 package server
 
 import (
-	"net/http"
 	defaultLogger "log"
+	"net/http"
 
+	"github.com/Doctor46-create/urlshort/internal/audit"
 	"github.com/Doctor46-create/urlshort/internal/config"
 	"github.com/Doctor46-create/urlshort/internal/config/db"
 	"github.com/Doctor46-create/urlshort/internal/handler"
@@ -32,6 +33,30 @@ func Execute() {
 		zap.String("file_storage_path", cfg.GetFileStoragePath()),
 		zap.String("database_dsn", cfg.GetDSN()),
 	)
+
+	var auditSubject *audit.Subject
+	if cfg.HasAudit() {
+		auditSubject = audit.NewSubject()
+
+		if cfg.GetAuditFile() != "" {
+			fileObserver, err := audit.NewFileObserver(cfg.GetAuditFile())
+			if err != nil {
+				log.Error("Failed to initialize file audit", zap.Error(err))
+			} else {
+				auditSubject.Register(fileObserver)
+				log.Info("File audit enabled", zap.String("path", cfg.GetAuditFile()))
+			}
+		}
+
+		if cfg.GetAuditURL() != "" {
+			httpObserver := audit.NewHTTPObserver(cfg.GetAuditURL())
+			auditSubject.Register(httpObserver)
+			log.Info("HTTP audit enabled", zap.String("url", cfg.GetAuditURL()))
+		}
+	} else {
+		log.Info("Audit disabled (no audit-file or audit-url configured)")
+		auditSubject = nil
+	}
 
 	var repo repository.URLRepository
 	var dbConfig *db.DBConfig
@@ -66,6 +91,14 @@ func Execute() {
 	}
 
 	log.Info("Server started successfully")
+
+	if auditSubject != nil {
+		go func() {
+			<-make(chan struct{})
+			log.Info("Shutting down audit...")
+			auditSubject.CloseAll()
+		}()
+	}
 
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {

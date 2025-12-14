@@ -68,6 +68,10 @@ func (c *Config) GetAuditURL() string {
 	return c.AuditURL
 }
 
+func (c *Config) HasAudit() bool {
+	return c.AuditFile != "" || c.AuditURL != ""
+}
+
 func GetConfig() *Config {
 	var cfg Config
 
@@ -102,6 +106,16 @@ func GetConfig() *Config {
 	}
 
 	log.Printf("Final DSN: %s", cfg.DSN)
+	if cfg.AuditFile != "" {
+		log.Printf("File audit enabled: %s", cfg.AuditFile)
+	} else {
+		log.Printf("File audit disabled")
+	}
+	if cfg.AuditURL != "" {
+		log.Printf("HTTP audit enabled: %s", cfg.AuditURL)
+	} else {
+		log.Printf("HTTP audit disabled")
+	}
 
 	return &cfg
 }
