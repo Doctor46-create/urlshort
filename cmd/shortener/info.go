@@ -26,4 +26,3 @@ func showBuildInfo() {
 	fmt.Printf("Build date: %s\n", date)
 	fmt.Printf("Build commit: %s\n", commit)
 }
-
