@@ -263,7 +263,7 @@ func (r *urlRepository) taskDistributor(ctx context.Context, inputs []chan model
 			counter++
 
 			timer.Reset(100 * time.Millisecond)
-			
+
 			select {
 			case inputs[idx] <- task:
 				if !timer.Stop() {
