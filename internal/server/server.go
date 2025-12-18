@@ -77,7 +77,7 @@ func Execute() {
 	var dbConfig *db.DBConfig
 	switch {
 	case cfg.GetDSN() != "":
-		dbConfig := db.NewDBConfig(cfg)
+		dbConfig = db.NewDBConfig(cfg)
 		databaseConn, err := db.NewDatabase(dbConfig)
 		if err != nil {
 			log.Fatal("Failed to connect to database", zap.Error(err))
@@ -102,7 +102,7 @@ func Execute() {
 
 	server := &http.Server{
 		Addr:    cfg.GetAddress(),
-		Handler: handler.InitRouter(log),
+		Handler: handler.InitRouter(log, *cfg),
 	}
 
 	log.Info("Server started successfully")

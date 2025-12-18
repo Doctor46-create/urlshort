@@ -26,12 +26,12 @@ func NewHandler(srvc service.Shortener, cfg config.ServiceConfig, logger *zap.Lo
 	}
 }
 
-func (h *Handler) InitRouter(logger *zap.Logger) chi.Router {
+func (h *Handler) InitRouter(logger *zap.Logger, cfg config.Config) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(mylogger.NewLoggerMiddleware(logger))
 	r.Use(CompressionMiddleware(logger))
-	r.Use(AuthMiddleware(logger))
+	r.Use(AuthMiddleware(logger, cfg))
 	r.Use(AuditMiddleware(h.auditSubject, logger))
 
 	r.With(PostOnly(logger)).Post("/", h.urlHandler.ShortenURL)

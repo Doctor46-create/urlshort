@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func testConfig() config.ServiceConfig {
+func testConfig() *config.Config {
 	return &config.Config{
 		App: config.App{
 			Address: ":8080",
@@ -77,7 +77,7 @@ func TestPostHandler(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, dbConfig, nil)
-			router := h.InitRouter(logger)
+			router := h.InitRouter(logger, *cfg)
 
 			req, err := http.NewRequest(tt.method, "/", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestShortenURLJSONHandler(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, dbConfig, nil)
-			router := h.InitRouter(logger)
+			router := h.InitRouter(logger, *cfg)
 
 			req, err := http.NewRequest(tt.method, "/api/shorten", bytes.NewBufferString(tt.body))
 			require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestPingDBHandler(t *testing.T) {
 			repo := testRepo()
 			srvc := service.NewURLService(repo)
 			h := NewHandler(srvc, cfg, logger, tt.dbConfig, nil)
-			router := h.InitRouter(logger)
+			router := h.InitRouter(logger, *cfg)
 
 			req, err := http.NewRequest(tt.method, "/ping", nil)
 			require.NoError(t, err)

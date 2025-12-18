@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+
+	"github.com/Doctor46-create/urlshort/internal/config"
 )
 
 type gzipWriter struct {
@@ -118,16 +120,14 @@ func GetOnly(logger *zap.Logger) func(http.Handler) http.Handler {
 	return MethodAllowed(http.MethodGet)
 }
 
-const secretKey = "guess_whos_back"
-
-func validateCookie(cookieValue string) (string, bool) {
+func validateCookie(cookieValue string, cfg config.Config) (string, bool) {
 	parts := strings.Split(cookieValue, ".")
 	if len(parts) != 2 {
 		return "", false
 	}
 	userID, signature := parts[0], parts[1]
 
-	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac := hmac.New(sha256.New, []byte(cfg.SecretKey))
 	mac.Write([]byte(userID))
 	expectedSignature := mac.Sum(nil)
 
@@ -139,14 +139,14 @@ func validateCookie(cookieValue string) (string, bool) {
 	return userID, hmac.Equal(receivedSignature, expectedSignature)
 }
 
-func signUserID(userID string) string {
-	mac := hmac.New(sha256.New, []byte(secretKey))
+func signUserID(userID string, cfg config.Config) string {
+	mac := hmac.New(sha256.New, []byte(cfg.SecretKey))
 	mac.Write([]byte(userID))
 	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 	return userID + "." + signature
 }
 
-func AuthMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
+func AuthMiddleware(logger *zap.Logger, cfg config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var userID string
@@ -160,13 +160,13 @@ func AuthMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				userID = uuid.New().String()
 				isValid = false
 			} else {
-				userID, isValid = validateCookie(cookie.Value)
+				userID, isValid = validateCookie(cookie.Value, cfg)
 				if !isValid {
 					userID = uuid.New().String()
 				}
 			}
 
-			signedValue := signUserID(userID)
+			signedValue := signUserID(userID, cfg)
 			logger.Info("Setting cookie",
 				zap.String("cookie_name", "user_id"),
 				zap.String("cookie_value", signedValue))

@@ -13,6 +13,7 @@ type Config struct {
 	Logger `yaml:"logger"`
 	DB     `yaml:"db"`
 	Audit  `yaml:"audit"`
+	Auth   `yaml:"auth"`
 }
 
 type App struct {
@@ -34,6 +35,10 @@ type Audit struct {
 	AuditURL  string `yaml:"auditURL" env:"AUDIT_URL" env-default:""`
 }
 
+type Auth struct {
+	SecretKey string `yaml:"secretKey" env:"SECRET_KEY" env-default:""`
+}
+
 func (c *Config) parseArgs() {
 	flag.StringVar(&c.Address, "a", c.Address, "Host")
 	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base url")
@@ -41,6 +46,7 @@ func (c *Config) parseArgs() {
 	flag.StringVar(&c.DSN, "d", c.DSN, "Database DSN")
 	flag.StringVar(&c.AuditFile, "audit-file", c.AuditFile, "Audit file path")
 	flag.StringVar(&c.AuditURL, "audit-url", c.AuditURL, "Audit server URL")
+	flag.StringVar(&c.SecretKey, "secret-key", c.SecretKey, "Secret key for cookies")
 	flag.Parse()
 }
 
@@ -70,6 +76,10 @@ func (c *Config) GetAuditURL() string {
 
 func (c *Config) HasAudit() bool {
 	return c.AuditFile != "" || c.AuditURL != ""
+}
+
+func (c *Config) GetSecretKey() string {
+	return c.SecretKey
 }
 
 func GetConfig() *Config {
@@ -103,6 +113,17 @@ func GetConfig() *Config {
 
 	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
 		cfg.AuditURL = envAuditURL
+	}
+
+	if envSecretKey := os.Getenv("SECRET_KEY"); envSecretKey != "" {
+		cfg.SecretKey = envSecretKey
+	}
+
+	if cfg.SecretKey == "" {
+		log.Println("WARNING: SECRET_KEY is not set. Using default development key.")
+		cfg.SecretKey = "guess_whos_back"
+	} else {
+		log.Println("INFO: SECRET_KEY is configured")
 	}
 
 	log.Printf("Final DSN: %s", cfg.DSN)

@@ -95,7 +95,7 @@ func (s *urlService) GetUserURLs(userID string) ([]model.UserURL, error) {
 }
 
 func (s *urlService) DeleteURLs(userID string, shortURLs []string) {
-	s.repo.DeleteURLs(userID, shortURLs)
+	_ = s.repo.DeleteURLs(userID, shortURLs)
 }
 
 func (s *urlService) PingDB() error {

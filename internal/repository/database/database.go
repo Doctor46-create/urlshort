@@ -236,6 +236,8 @@ func (r *urlRepository) initDeletionWorkers(ctx context.Context) {
 
 func (r *urlRepository) taskDistributor(ctx context.Context, inputs []chan model.DeleteURL) {
 	var counter uint64
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
 
 	for {
 		select {
@@ -260,9 +262,14 @@ func (r *urlRepository) taskDistributor(ctx context.Context, inputs []chan model
 			idx := counter % uint64(len(inputs))
 			counter++
 
+			timer.Reset(100 * time.Millisecond)
+			
 			select {
 			case inputs[idx] <- task:
-			case <-time.After(100 * time.Millisecond):
+				if !timer.Stop() {
+					<-timer.C
+				}
+			case <-timer.C:
 				log.Printf("Failed to distribute deletion task after timeout: user=%s, url=%s",
 					task.UserID, task.ShortURL)
 			case <-ctx.Done():
