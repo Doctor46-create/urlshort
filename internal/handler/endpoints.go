@@ -223,7 +223,11 @@ func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
 
 	requestID := r.Header.Get("X-Request-ID")
 
-	results, err := h.srvc.ShortenBatch(requestItems, requestID, ctx.Value(userIDKey).(string))
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
+	if !ok {
+		return
+	}
+	results, err := h.srvc.ShortenBatch(requestItems, requestID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrURLAlreadyShortened) {
 			conflictErr := &service.URLAlreadyShortenedError{}
