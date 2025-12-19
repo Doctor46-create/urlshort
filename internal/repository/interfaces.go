@@ -10,3 +10,7 @@ type URLRepository interface {
 	DeleteURLs(userID string, urlIDs []string) error
 	PingDB() error
 }
+
+type Shutdowner interface {
+	Shutdown()
+}

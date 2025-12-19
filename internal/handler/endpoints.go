@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"reflect"
 
 	"github.com/Doctor46-create/urlshort/internal/model"
 	"github.com/Doctor46-create/urlshort/internal/service"
@@ -18,18 +17,8 @@ import (
 func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	userIDValue := ctx.Value(userIDKey)
-	if userIDValue == nil {
-		h.logger.Error("User ID not found in context")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	userID, ok := userIDValue.(string)
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
 	if !ok {
-		h.logger.Error("Invalid user ID type in context",
-			zap.Any("type", reflect.TypeOf(userIDValue)))
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -121,7 +110,12 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	requestID := r.Header.Get("X-Request-ID")
 
-	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID, ctx.Value(userIDKey).(string))
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
+	if !ok {
+		return
+	}
+
+	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrURLAlreadyShortened) {
 			conflictErr := &service.URLAlreadyShortenedError{}

@@ -356,7 +356,6 @@ func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) error {
 
 func (r *urlRepository) Shutdown() {
 	close(r.shutdown)
-	close(r.DeleteChannel)
 	r.WG.Wait()
 	log.Printf("Deletion service shutdown completed")
 }
