@@ -18,8 +18,12 @@ type Config struct {
 
 type App struct {
 	Address         string `yaml:"address" env-default:":8000"`
-	BaseURL         string `yaml:"baseURL" env-default:"http://localhost:8080"`
+	BaseURL         string `yaml:"baseURL" env-default:"http://localhost:8000"`
 	FileStoragePath string `yaml:"fileStoragePath" env:"FILE_STORAGE_PATH" env-default:"short_urls.json"`
+
+	EnableHTTPS bool   `yaml:"enableHTTPS" env:"ENABLE_HTTPS" env-default:"false"`
+	CertFile    string `yaml:"certFile" env:"TLS_CERT_FILE" env-default:"server.crt"`
+	KeyFile     string `yaml:"keyFile" env:"TLS_KEY_FILE" env-default:"server.key"`
 }
 
 type Logger struct {
@@ -40,13 +44,19 @@ type Auth struct {
 }
 
 func (c *Config) parseArgs() {
-	flag.StringVar(&c.Address, "a", c.Address, "Host")
-	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base url")
+	flag.StringVar(&c.Address, "a", c.Address, "Server address")
+	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base URL")
 	flag.StringVar(&c.FileStoragePath, "f", c.FileStoragePath, "File storage path")
 	flag.StringVar(&c.DSN, "d", c.DSN, "Database DSN")
+
+	flag.BoolVar(&c.EnableHTTPS, "s", c.EnableHTTPS, "Enable HTTPS")
+	flag.StringVar(&c.CertFile, "tls-cert", c.CertFile, "TLS certificate file")
+	flag.StringVar(&c.KeyFile, "tls-key", c.KeyFile, "TLS key file")
+
 	flag.StringVar(&c.AuditFile, "audit-file", c.AuditFile, "Audit file path")
 	flag.StringVar(&c.AuditURL, "audit-url", c.AuditURL, "Audit server URL")
 	flag.StringVar(&c.SecretKey, "secret-key", c.SecretKey, "Secret key for cookies")
+
 	flag.Parse()
 }
 
@@ -82,16 +92,28 @@ func (c *Config) GetSecretKey() string {
 	return c.SecretKey
 }
 
+func (c *Config) IsHTTPSEnabled() bool {
+	return c.EnableHTTPS
+}
+
+func (c *Config) GetTLSCertFile() string {
+	return c.CertFile
+}
+
+func (c *Config) GetTLSKeyFile() string {
+	return c.KeyFile
+}
+
 func GetConfig() *Config {
 	var cfg Config
 
 	configPath := os.Getenv("CONFIG_PATH")
 	if configPath == "" {
-		log.Println("CONFIG_PATH is not declared and is set to default")
+		log.Println("CONFIG_PATH is not set, using default config.yaml")
 		configPath = "config.yaml"
 	}
 
-	if _, err := os.Stat(configPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); err == nil {
 		if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
 			log.Fatalf("cannot read config: %s", err)
 		}
@@ -99,43 +121,37 @@ func GetConfig() *Config {
 
 	cfg.parseArgs()
 
-	if envFileStoragePath := os.Getenv("FILE_STORAGE_PATH"); envFileStoragePath != "" {
-		cfg.FileStoragePath = envFileStoragePath
+	if v := os.Getenv("FILE_STORAGE_PATH"); v != "" {
+		cfg.FileStoragePath = v
 	}
-
-	if envDSN := os.Getenv("DATABASE_DSN"); envDSN != "" {
-		cfg.DSN = envDSN
+	if v := os.Getenv("DATABASE_DSN"); v != "" {
+		cfg.DSN = v
 	}
-
-	if envAuditFile := os.Getenv("AUDIT_FILE"); envAuditFile != "" {
-		cfg.AuditFile = envAuditFile
+	if v := os.Getenv("AUDIT_FILE"); v != "" {
+		cfg.AuditFile = v
 	}
-
-	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
-		cfg.AuditURL = envAuditURL
+	if v := os.Getenv("AUDIT_URL"); v != "" {
+		cfg.AuditURL = v
 	}
-
-	if envSecretKey := os.Getenv("SECRET_KEY"); envSecretKey != "" {
-		cfg.SecretKey = envSecretKey
+	if v := os.Getenv("SECRET_KEY"); v != "" {
+		cfg.SecretKey = v
+	}
+	if v := os.Getenv("ENABLE_HTTPS"); v == "true" {
+		cfg.EnableHTTPS = true
 	}
 
 	if cfg.SecretKey == "" {
-		log.Println("WARNING: SECRET_KEY is not set. Using default development key.")
+		log.Println("WARNING: SECRET_KEY is not set, using development default")
 		cfg.SecretKey = "guess_whos_back"
-	} else {
-		log.Println("INFO: SECRET_KEY is configured")
 	}
 
-	log.Printf("Final DSN: %s", cfg.DSN)
-	if cfg.AuditFile != "" {
-		log.Printf("File audit enabled: %s", cfg.AuditFile)
-	} else {
-		log.Printf("File audit disabled")
-	}
-	if cfg.AuditURL != "" {
-		log.Printf("HTTP audit enabled: %s", cfg.AuditURL)
-	} else {
-		log.Printf("HTTP audit disabled")
+	log.Printf("Server address: %s", cfg.Address)
+	log.Printf("Base URL: %s", cfg.BaseURL)
+	log.Printf("HTTPS enabled: %v", cfg.EnableHTTPS)
+
+	if cfg.EnableHTTPS {
+		log.Printf("TLS cert: %s", cfg.CertFile)
+		log.Printf("TLS key: %s", cfg.KeyFile)
 	}
 
 	return &cfg
