@@ -5,22 +5,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
 )
 
-// Execute is the entry point of the server application.
-//
-// It initializes the application configuration and all required
-// dependencies, starts the HTTP server in a separate goroutine,
-// and blocks until an OS termination signal is received.
-//
-// The function listens for SIGINT and SIGTERM signals and performs
-// a graceful shutdown when one of them is caught. During shutdown,
-// all application resources (HTTP server, repositories, background
-// workers, audit services, etc.) are properly released.
-//
-// Execute blocks until the application has been fully shut down.
 func Execute() {
 	cfg := config.GetConfig()
 
@@ -28,10 +19,28 @@ func Execute() {
 	app.Init()
 
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	go app.Run()
+	go func() {
+		app.Run()
+	}()
 
-	<-stop
-	app.Shutdown()
+	sig := <-stop
+
+	app.log.Info("Received signal, shutting down...", zap.String("signal", sig.String()))
+
+	shutdownTimeout := 5 * time.Second
+	done := make(chan struct{})
+
+	go func() {
+		app.Shutdown()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		app.log.Info("Server shutdown completed")
+	case <-time.After(shutdownTimeout):
+		app.log.Warn("Server shutdown timed out, exiting forcefully")
+	}
 }
