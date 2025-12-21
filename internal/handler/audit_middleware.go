@@ -32,6 +32,14 @@ func (arw *auditResponseWriter) Write(b []byte) (int, error) {
 	return arw.ResponseWriter.Write(b)
 }
 
+func wrapResponseWriter(w http.ResponseWriter) *auditResponseWriter {
+	return &auditResponseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+		body:           bytes.Buffer{},
+	}
+}
+
 func AuditMiddleware(subject *audit.Subject, logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if subject == nil {
@@ -40,50 +48,40 @@ func AuditMiddleware(subject *audit.Subject, logger *zap.Logger) func(http.Handl
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var originalURL string
-			if r.Method == http.MethodPost && (r.URL.Path == "/" || r.URL.Path == "/api/shorten") {
-				originalURL = extractOriginalURL(r, logger)
-				if originalURL != "" {
-					r = restoreRequestBody(r, originalURL, r.URL.Path == "/api/shorten", logger)
-				}
-			}
+			r, originalURL := prepareRequestForAudit(r, logger)
+			arw := wrapResponseWriter(w)
 
-			arw := &auditResponseWriter{
-				ResponseWriter: w,
-				statusCode:     http.StatusOK,
-				body:           bytes.Buffer{},
-			}
+			next.ServeHTTP(arw, r)
 
-			ctx := r.Context()
-			if originalURL != "" {
-				ctx = context.WithValue(ctx, auditOriginalURLKey, originalURL)
-			}
-
-			next.ServeHTTP(arw, r.WithContext(ctx))
-
-			if shouldAudit(r, arw.statusCode) {
-				go sendAuditEvent(r, arw.statusCode, originalURL, subject, logger)
-			}
+			processAuditAfterResponse(r, arw.statusCode, originalURL, subject, logger)
 		})
 	}
 }
 
-func shouldAudit(r *http.Request, statusCode int) bool {
-	if statusCode < 200 || statusCode >= 300 {
-		return false
+func shouldExtractOriginalURL(r *http.Request) bool {
+	return r.Method == http.MethodPost &&
+		(r.URL.Path == "/" || r.URL.Path == "/api/shorten")
+}
+
+func prepareRequestForAudit(r *http.Request, logger *zap.Logger) (*http.Request, string) {
+	if !shouldExtractOriginalURL(r) {
+		return r, ""
 	}
 
-	switch {
-	case r.URL.Path == "/" && r.Method == http.MethodPost:
-		return true
-	case r.URL.Path == "/api/shorten" && r.Method == http.MethodPost:
-		return true
-	case len(r.URL.Path) > 1 && r.Method == http.MethodGet && r.URL.Path != "/ping" &&
-		r.URL.Path != "/api/user/urls" && !strings.HasPrefix(r.URL.Path, "/api/"):
-		return true
-	default:
-		return false
+	originalURL := extractOriginalURL(r, logger)
+	if originalURL == "" {
+		return r, ""
 	}
+
+	r = restoreRequestBody(
+		r,
+		originalURL,
+		r.URL.Path == "/api/shorten",
+		logger,
+	)
+
+	ctx := context.WithValue(r.Context(), auditOriginalURLKey, originalURL)
+	return r.WithContext(ctx), originalURL
 }
 
 func extractOriginalURL(r *http.Request, logger *zap.Logger) string {
@@ -108,8 +106,14 @@ func extractOriginalURL(r *http.Request, logger *zap.Logger) string {
 	return string(bodyBytes)
 }
 
-func restoreRequestBody(r *http.Request, originalURL string, isJSON bool, logger *zap.Logger) *http.Request {
+func restoreRequestBody(
+	r *http.Request,
+	originalURL string,
+	isJSON bool,
+	logger *zap.Logger,
+) *http.Request {
 	var body []byte
+
 	if isJSON {
 		jsonBody := map[string]string{"url": originalURL}
 		var err error
@@ -127,42 +131,90 @@ func restoreRequestBody(r *http.Request, originalURL string, isJSON bool, logger
 	return r
 }
 
-func sendAuditEvent(r *http.Request, statusCode int, originalURL string, subject *audit.Subject, logger *zap.Logger) {
-	var action audit.Action
-	var url string
+func shouldAudit(r *http.Request, statusCode int) bool {
+	if statusCode < 200 || statusCode >= 300 {
+		return false
+	}
 
 	switch {
-	case r.URL.Path == "/" && r.Method == http.MethodPost:
-		action = audit.ActionShorten
-		url = originalURL
-	case r.URL.Path == "/api/shorten" && r.Method == http.MethodPost:
-		action = audit.ActionShorten
-		url = originalURL
-	case len(r.URL.Path) > 1 && r.Method == http.MethodGet:
-		action = audit.ActionFollow
-		url = r.URL.String()
+	case r.Method == http.MethodPost && r.URL.Path == "/":
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/shorten":
+		return true
+	case r.Method == http.MethodGet &&
+		len(r.URL.Path) > 1 &&
+		r.URL.Path != "/ping" &&
+		r.URL.Path != "/api/user/urls" &&
+		!strings.HasPrefix(r.URL.Path, "/api/"):
+		return true
 	default:
+		return false
+	}
+}
+
+func processAuditAfterResponse(
+	r *http.Request,
+	statusCode int,
+	originalURL string,
+	subject *audit.Subject,
+	logger *zap.Logger,
+) {
+	if !shouldAudit(r, statusCode) {
 		return
 	}
 
-	userID := ""
-	if userIDCtx := r.Context().Value(userIDKey); userIDCtx != nil {
-		if id, ok := userIDCtx.(string); ok {
-			userID = id
-		}
+	event := buildAuditEvent(r, originalURL)
+	if event == nil {
+		return
 	}
 
-	if url != "" {
-		event := audit.NewEvent(action, userID, url)
+	sendAuditEventAsync(event, subject, logger, statusCode)
+}
+
+func buildAuditEvent(r *http.Request, originalURL string) *audit.AuditEvent {
+	var (
+		action audit.Action
+		url    string
+	)
+
+	switch {
+	case r.Method == http.MethodPost &&
+		(r.URL.Path == "/" || r.URL.Path == "/api/shorten"):
+		action = audit.ActionShorten
+		url = originalURL
+
+	case r.Method == http.MethodGet && len(r.URL.Path) > 1:
+		action = audit.ActionFollow
+		url = r.URL.String()
+
+	default:
+		return nil
+	}
+
+	userID := ""
+	if id, ok := r.Context().Value(userIDKey).(string); ok {
+		userID = id
+	}
+
+	return audit.NewEvent(action, userID, url)
+}
+
+func sendAuditEventAsync(
+	event *audit.AuditEvent,
+	subject *audit.Subject,
+	logger *zap.Logger,
+	statusCode int,
+) {
+	go func() {
 		subject.NotifyAll(event)
 
 		logger.Debug("Audit event sent",
-			zap.String("action", string(action)),
-			zap.String("user_id", userID),
-			zap.String("url", url),
+			zap.String("action", string(event.Action)),
+			zap.String("user_id", event.UserID),
+			zap.String("url", event.URL),
 			zap.Int("status_code", statusCode),
 		)
-	}
+	}()
 }
 
 func GetOriginalURLFromContext(ctx context.Context) string {

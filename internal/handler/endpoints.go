@@ -40,19 +40,8 @@ func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 	shortKey, err := h.srvc.Shorten(originalURL, requestID, userID)
 	if err != nil {
-		if errors.Is(err, service.ErrURLAlreadyShortened) {
-			conflictErr := &service.URLAlreadyShortenedError{}
-			if errors.As(err, &conflictErr) {
-				w.Header().Set("Content-Type", "text/plain")
-				w.WriteHeader(http.StatusConflict)
-				w.Write([]byte(h.cfg.GetBaseURL() + "/" + conflictErr.ShortKey))
-
-				h.logger.Info("URL already exists",
-					zap.String("original_url", originalURL),
-					zap.String("short_key", conflictErr.ShortKey),
-					zap.String("request_id", requestID))
-				return
-			}
+		if h.handleConflictError(w, err, originalURL, requestID, "text") {
+			return
 		}
 
 		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
@@ -117,32 +106,9 @@ func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID, userID)
 	if err != nil {
-		if errors.Is(err, service.ErrURLAlreadyShortened) {
-			conflictErr := &service.URLAlreadyShortenedError{}
-			if errors.As(err, &conflictErr) {
-				response := model.JSONResponse{
-					Result: h.cfg.GetBaseURL() + "/" + conflictErr.ShortKey,
-				}
-
-				jsonData, marshalErr := json.Marshal(response)
-				if marshalErr != nil {
-					h.logger.Error("Failed to marshal JSON response", zap.Error(err))
-					http.Error(w, "Server error", http.StatusInternalServerError)
-					return
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusConflict)
-				w.Write(jsonData)
-
-				h.logger.Info("URL already exists (JSON)",
-					zap.String("original_url", newRequest.URL),
-					zap.String("short_key", conflictErr.ShortKey),
-					zap.String("request_id", requestID))
-				return
-			}
+		if h.handleConflictError(w, err, newRequest.URL, requestID, "json") {
+			return
 		}
-
 		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
 		http.Error(w, "Server error", http.StatusInternalServerError)
 		return

@@ -52,79 +52,38 @@ type JSONConfig struct {
 	EnableHTTPS     *bool  `json:"enable_https"`
 }
 
-func (c *Config) parseFlags() string {
-	var jsonConfigPath string
+func GetConfig() *Config {
+	var cfg Config
 
-	flag.StringVar(&jsonConfigPath, "c", "", "Path to JSON config file")
-	flag.StringVar(&jsonConfigPath, "config", "", "Path to JSON config file")
+	loadFromYAML(&cfg)
+	jsonPath := parseFlags(&cfg)
+	loadFromJSON(&cfg, jsonPath)
+	loadFromEnv(&cfg)
+	validateSecretKey(&cfg)
 
-	flag.StringVar(&c.Address, "a", c.Address, "Server address")
-	flag.StringVar(&c.BaseURL, "b", c.BaseURL, "Base URL")
-	flag.StringVar(&c.FileStoragePath, "f", c.FileStoragePath, "File storage path")
-	flag.StringVar(&c.DSN, "d", c.DSN, "Database DSN")
+	return &cfg
+}
 
-	flag.BoolVar(&c.EnableHTTPS, "s", c.EnableHTTPS, "Enable HTTPS")
-	flag.StringVar(&c.CertFile, "tls-cert", c.CertFile, "TLS certificate file")
-	flag.StringVar(&c.KeyFile, "tls-key", c.KeyFile, "TLS key file")
-
-	flag.StringVar(&c.AuditFile, "audit-file", c.AuditFile, "Audit file path")
-	flag.StringVar(&c.AuditURL, "audit-url", c.AuditURL, "Audit server URL")
-	flag.StringVar(&c.SecretKey, "secret-key", c.SecretKey, "Secret key")
-
-	flag.Parse()
-
-	if jsonConfigPath == "" {
-		jsonConfigPath = os.Getenv("CONFIG")
+func loadFromYAML(cfg *Config) {
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "config.yaml"
 	}
 
-	return jsonConfigPath
+	if _, err := os.Stat(configPath); err == nil {
+		if err := cleanenv.ReadConfig(configPath, cfg); err != nil {
+			log.Fatalf("cannot read YAML config: %v", err)
+		}
+	}
 }
 
-func (c *Config) GetAddress() string {
-	return c.Address
+func loadFromEnv(cfg *Config) {
+	if err := cleanenv.ReadEnv(cfg); err != nil {
+		log.Fatalf("cannot read environment variables: %v", err)
+	}
 }
 
-func (c *Config) GetBaseURL() string {
-	return c.BaseURL
-}
-
-func (c *Config) GetFileStoragePath() string {
-	return c.FileStoragePath
-}
-
-func (c *Config) GetDSN() string {
-	return c.DSN
-}
-
-func (c *Config) GetAuditFile() string {
-	return c.AuditFile
-}
-
-func (c *Config) GetAuditURL() string {
-	return c.AuditURL
-}
-
-func (c *Config) HasAudit() bool {
-	return c.AuditFile != "" || c.AuditURL != ""
-}
-
-func (c *Config) GetSecretKey() string {
-	return c.SecretKey
-}
-
-func (c *Config) IsHTTPSEnabled() bool {
-	return c.EnableHTTPS
-}
-
-func (c *Config) GetTLSCertFile() string {
-	return c.CertFile
-}
-
-func (c *Config) GetTLSKeyFile() string {
-	return c.KeyFile
-}
-
-func applyJSONConfig(cfg *Config, path string) {
+func loadFromJSON(cfg *Config, path string) {
 	if path == "" {
 		return
 	}
@@ -164,32 +123,49 @@ func applyJSONConfig(cfg *Config, path string) {
 	}
 }
 
-func GetConfig() *Config {
-	var cfg Config
+func parseFlags(cfg *Config) string {
+	var jsonConfigPath string
 
-	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		configPath = "config.yaml"
+	flag.StringVar(&jsonConfigPath, "c", "", "Path to JSON config file")
+	flag.StringVar(&jsonConfigPath, "config", "", "Path to JSON config file")
+
+	flag.StringVar(&cfg.Address, "a", cfg.Address, "Server address")
+	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "Base URL")
+	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "File storage path")
+	flag.StringVar(&cfg.DSN, "d", cfg.DSN, "Database DSN")
+
+	flag.BoolVar(&cfg.EnableHTTPS, "s", cfg.EnableHTTPS, "Enable HTTPS")
+	flag.StringVar(&cfg.CertFile, "tls-cert", cfg.CertFile, "TLS certificate file")
+	flag.StringVar(&cfg.KeyFile, "tls-key", cfg.KeyFile, "TLS key file")
+
+	flag.StringVar(&cfg.AuditFile, "audit-file", cfg.AuditFile, "Audit file path")
+	flag.StringVar(&cfg.AuditURL, "audit-url", cfg.AuditURL, "Audit server URL")
+	flag.StringVar(&cfg.SecretKey, "secret-key", cfg.SecretKey, "Secret key")
+
+	flag.Parse()
+
+	if jsonConfigPath == "" {
+		jsonConfigPath = os.Getenv("CONFIG")
 	}
 
-	if _, err := os.Stat(configPath); err == nil {
-		if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-			log.Fatalf("cannot read YAML config: %v", err)
-		}
-	}
+	return jsonConfigPath
+}
 
-	jsonPath := cfg.parseFlags()
-
-	applyJSONConfig(&cfg, jsonPath)
-
-	if err := cleanenv.ReadEnv(&cfg); err != nil {
-		log.Fatalf("cannot read environment variables: %v", err)
-	}
-
+func validateSecretKey(cfg *Config) {
 	if cfg.SecretKey == "" {
-		log.Println("WARNING: SECRET_KEY is not set, using default")
+		log.Println("WARNING: SECRET_KEY is not set, using development default")
 		cfg.SecretKey = "guess_whos_back"
 	}
-
-	return &cfg
 }
+
+func (c *Config) GetAddress() string         { return c.Address }
+func (c *Config) GetBaseURL() string         { return c.BaseURL }
+func (c *Config) GetFileStoragePath() string { return c.FileStoragePath }
+func (c *Config) GetDSN() string             { return c.DSN }
+func (c *Config) GetAuditFile() string       { return c.AuditFile }
+func (c *Config) GetAuditURL() string        { return c.AuditURL }
+func (c *Config) HasAudit() bool             { return c.AuditFile != "" || c.AuditURL != "" }
+func (c *Config) GetSecretKey() string       { return c.SecretKey }
+func (c *Config) IsHTTPSEnabled() bool       { return c.EnableHTTPS }
+func (c *Config) GetTLSCertFile() string     { return c.CertFile }
+func (c *Config) GetTLSKeyFile() string      { return c.KeyFile }

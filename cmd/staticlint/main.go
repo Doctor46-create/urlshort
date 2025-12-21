@@ -1,4 +1,4 @@
-// Package maiG
+// Package main
 //
 // # Purpose
 //
