@@ -9,6 +9,7 @@ type URLRepository interface {
 	GetUserURLs(userID string) ([]model.UserURL, error)
 	DeleteURLs(userID string, urlIDs []string) error
 	PingDB() error
+	GetStats() (urls int, users int, err error)
 }
 
 type Shutdowner interface {

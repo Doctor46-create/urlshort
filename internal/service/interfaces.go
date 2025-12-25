@@ -9,4 +9,5 @@ type Shortener interface {
 	GetUserURLs(userID string) ([]model.UserURL, error)
 	DeleteURLs(userID string, shortURLs []string)
 	PingDB() error
+	GetStats() (urls int, users int, err error)
 }

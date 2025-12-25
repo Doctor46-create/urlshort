@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"reflect"
 
@@ -82,4 +83,22 @@ func (h *urlHandler) handleConflictError(
 	)
 
 	return true
+}
+
+func ipAllowed(trustedSubnet string, realIP string) bool {
+	if trustedSubnet == "" {
+		return false
+	}
+
+	ip := net.ParseIP(realIP)
+	if ip == nil {
+		return false
+	}
+
+	_, subnet, err := net.ParseCIDR(trustedSubnet)
+	if err != nil {
+		return false
+	}
+
+	return subnet.Contains(ip)
 }

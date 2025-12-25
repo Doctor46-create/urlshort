@@ -10,4 +10,5 @@ type URLHandler interface {
 	ShortenBatchURL(w http.ResponseWriter, r *http.Request)
 	GetUserURLs(w http.ResponseWriter, r *http.Request)
 	DeleteURLs(w http.ResponseWriter, r *http.Request)
+	GetStats(w http.ResponseWriter, r *http.Request)
 }

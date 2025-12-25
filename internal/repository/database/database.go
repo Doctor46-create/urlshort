@@ -22,6 +22,7 @@ type SQLQueries struct {
 	FindByOriginalURL string
 	GetUserURLs       string
 	DeleteURLs        string
+	GetStats          string
 }
 
 var queries = SQLQueries{
@@ -38,6 +39,13 @@ var queries = SQLQueries{
 		WHERE user_id = $1
 		  AND short_url = ANY($2)
 		  AND is_deleted = false
+	`,
+	GetStats: `
+		SELECT
+			COUNT(*)                AS urls,
+			COUNT(DISTINCT user_id) AS users
+		FROM short_urls
+		WHERE COALESCE(is_deleted, false) = false
 	`,
 }
 
@@ -387,3 +395,16 @@ func (r *urlRepository) PingDB() error {
 	}
 	return nil
 }
+
+func (r *urlRepository) GetStats() (int, int, error) {
+	var urls int
+	var users int
+
+	err := r.DB.QueryRow(r.Queries.GetStats).Scan(&urls, &users)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get stats: %w", err)
+	}
+
+	return urls, users, nil
+}
+

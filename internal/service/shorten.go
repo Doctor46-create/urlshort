@@ -108,3 +108,8 @@ func (s *urlService) PingDB() error {
 	fmt.Println("Database connection successful")
 	return nil
 }
+
+func (s *urlService) GetStats() (int, int, error) {
+	return s.repo.GetStats()
+}
+

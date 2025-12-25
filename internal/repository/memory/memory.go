@@ -89,3 +89,7 @@ func (r *urlRepository) DeleteURLs(userID string, urlIDs []string) error {
 func (r *urlRepository) PingDB() error {
 	return repository.ErrNotSupported
 }
+
+func (r *urlRepository) GetStats() (int, int, error) {
+	return 0, 0, repository.ErrNotSupported
+}

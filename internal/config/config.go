@@ -22,9 +22,10 @@ type App struct {
 	BaseURL         string `yaml:"baseURL" env:"BASE_URL" env-default:"http://localhost:8000"`
 	FileStoragePath string `yaml:"fileStoragePath" env:"FILE_STORAGE_PATH" env-default:"short_urls.json"`
 
-	EnableHTTPS bool   `yaml:"enableHTTPS" env:"ENABLE_HTTPS" env-default:"false"`
-	CertFile    string `yaml:"certFile" env:"TLS_CERT_FILE" env-default:"server.crt"`
-	KeyFile     string `yaml:"keyFile" env:"TLS_KEY_FILE" env-default:"server.key"`
+	EnableHTTPS   bool   `yaml:"enableHTTPS" env:"ENABLE_HTTPS" env-default:"false"`
+	CertFile      string `yaml:"certFile" env:"TLS_CERT_FILE" env-default:"server.crt"`
+	KeyFile       string `yaml:"keyFile" env:"TLS_KEY_FILE" env-default:"server.key"`
+	TrustedSubnet string `yaml:"trustedSubnet" env:"TRUSTED_SUBNET"`
 }
 
 type Logger struct {
@@ -50,6 +51,7 @@ type JSONConfig struct {
 	FileStoragePath string `json:"file_storage_path"`
 	DatabaseDSN     string `json:"database_dsn"`
 	EnableHTTPS     *bool  `json:"enable_https"`
+	TrustedSubnet   string `json:"trusted_subnet"`
 }
 
 func GetConfig() *Config {
@@ -121,6 +123,9 @@ func loadFromJSON(cfg *Config, path string) {
 	if jc.EnableHTTPS != nil {
 		cfg.EnableHTTPS = *jc.EnableHTTPS
 	}
+	if jc.TrustedSubnet != "" {
+		cfg.TrustedSubnet = jc.TrustedSubnet
+	}
 }
 
 func parseFlags(cfg *Config) string {
@@ -141,6 +146,7 @@ func parseFlags(cfg *Config) string {
 	flag.StringVar(&cfg.AuditFile, "audit-file", cfg.AuditFile, "Audit file path")
 	flag.StringVar(&cfg.AuditURL, "audit-url", cfg.AuditURL, "Audit server URL")
 	flag.StringVar(&cfg.SecretKey, "secret-key", cfg.SecretKey, "Secret key")
+	flag.StringVar(&cfg.TrustedSubnet, "t", cfg.TrustedSubnet, "Trusted subnet in CIDR format")
 
 	flag.Parse()
 
@@ -169,3 +175,4 @@ func (c *Config) GetSecretKey() string       { return c.SecretKey }
 func (c *Config) IsHTTPSEnabled() bool       { return c.EnableHTTPS }
 func (c *Config) GetTLSCertFile() string     { return c.CertFile }
 func (c *Config) GetTLSKeyFile() string      { return c.KeyFile }
+func (c *Config) GetTrustedSubnet() string   { return c.TrustedSubnet }

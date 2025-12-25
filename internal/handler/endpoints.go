@@ -319,3 +319,33 @@ func (h *urlHandler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
 		zap.String("user_id", userID),
 		zap.Strings("short_urls", shortURLs))
 }
+
+func (h *urlHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	realIP := r.Header.Get("X-Real-IP")
+
+	if !ipAllowed(h.cfg.GetTrustedSubnet(), realIP) {
+		h.logger.Warn("Forbidden stats access",
+			zap.String("real_ip", realIP),
+			zap.String("trusted_subnet", h.cfg.GetTrustedSubnet()),
+		)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	urls, users, err := h.srvc.GetStats()
+	if err != nil {
+		h.logger.Error("Failed to get stats", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := model.StatsResponse{
+		URLs:  urls,
+		Users: users,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+

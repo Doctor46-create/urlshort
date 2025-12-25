@@ -28,3 +28,8 @@ type DeleteURL struct {
 	UserID   string
 	ShortURL string
 }
+
+type StatsResponse struct {
+	URLs  int `json:"urls"`
+	Users int `json:"users"`
+}
