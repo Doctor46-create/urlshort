@@ -13,5 +13,5 @@ type ServiceConfig interface {
 	GetTLSCertFile() string
 	GetTLSKeyFile() string
 	GetTrustedSubnet() string
+	GetGRPCAddress() string
 }
-

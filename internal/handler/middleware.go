@@ -3,9 +3,6 @@ package handler
 import (
 	"compress/gzip"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"net/http"
 	"slices"
 	"strings"
@@ -15,6 +12,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
+	"github.com/Doctor46-create/urlshort/internal/auth"
+
 )
 
 type gzipWriter struct {
@@ -125,56 +124,34 @@ func GetOnly(logger *zap.Logger) func(http.Handler) http.Handler {
 	return MethodAllowed(http.MethodGet)
 }
 
-func validateCookie(cookieValue string, cfg config.Config) (string, bool) {
-	parts := strings.Split(cookieValue, ".")
-	if len(parts) != 2 {
-		return "", false
-	}
-	userID, signature := parts[0], parts[1]
-
-	mac := hmac.New(sha256.New, []byte(cfg.SecretKey))
-	mac.Write([]byte(userID))
-	expectedSignature := mac.Sum(nil)
-
-	receivedSignature, err := base64.StdEncoding.DecodeString(signature)
-	if err != nil {
-		return "", false
-	}
-
-	return userID, hmac.Equal(receivedSignature, expectedSignature)
-}
-
-func signUserID(userID string, cfg config.Config) string {
-	mac := hmac.New(sha256.New, []byte(cfg.SecretKey))
-	mac.Write([]byte(userID))
-	signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
-	return userID + "." + signature
-}
-
 func AuthMiddleware(logger *zap.Logger, cfg config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var userID string
-			var isValid bool
-			var hadCookie bool
+			var (
+				userID    string
+				isValid   bool
+				hadCookie bool
+			)
 
 			cookie, err := r.Cookie("user_id")
-			hadCookie = (err == nil && cookie != nil && cookie.Value != "")
+			hadCookie = err == nil && cookie != nil && cookie.Value != ""
 
 			if !hadCookie {
 				userID = uuid.New().String()
 				isValid = false
 			} else {
-				userID, isValid = validateCookie(cookie.Value, cfg)
+				userID, isValid = auth.ValidateSignedUserID(cookie.Value, cfg.SecretKey)
 				if !isValid {
 					userID = uuid.New().String()
 				}
 			}
 
-			signedValue := signUserID(userID, cfg)
+			signedValue := auth.SignUserID(userID, cfg.SecretKey)
+
 			logger.Info("Setting cookie",
 				zap.String("cookie_name", "user_id"),
-				zap.String("cookie_value", signedValue))
+				zap.String("cookie_value", signedValue),
+			)
 
 			http.SetCookie(w, &http.Cookie{
 				Name:     "user_id",
@@ -193,9 +170,11 @@ func AuthMiddleware(logger *zap.Logger, cfg config.Config) func(http.Handler) ht
 			logger.Info("Context set",
 				zap.String("user_id", userID),
 				zap.Bool("cookie_was_valid", isValid),
-				zap.Bool("had_cookie", hadCookie))
+				zap.Bool("had_cookie", hadCookie),
+			)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
+

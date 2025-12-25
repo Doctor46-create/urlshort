@@ -19,6 +19,7 @@ type Config struct {
 
 type App struct {
 	Address         string `yaml:"address" env:"SERVER_ADDRESS" env-default:":8000"`
+	GRPCAddress     string `yaml:"grpcAddress" env:"GRPC_ADDRESS" env-default:":9000"`
 	BaseURL         string `yaml:"baseURL" env:"BASE_URL" env-default:"http://localhost:8000"`
 	FileStoragePath string `yaml:"fileStoragePath" env:"FILE_STORAGE_PATH" env-default:"short_urls.json"`
 
@@ -176,3 +177,4 @@ func (c *Config) IsHTTPSEnabled() bool       { return c.EnableHTTPS }
 func (c *Config) GetTLSCertFile() string     { return c.CertFile }
 func (c *Config) GetTLSKeyFile() string      { return c.KeyFile }
 func (c *Config) GetTrustedSubnet() string   { return c.TrustedSubnet }
+func (c *Config) GetGRPCAddress() string     { return c.GRPCAddress }

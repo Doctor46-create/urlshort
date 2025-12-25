@@ -4,14 +4,11 @@ import (
 	"net/http"
 
 	"github.com/Doctor46-create/urlshort/internal/handler"
-	"github.com/Doctor46-create/urlshort/internal/service"
 )
 
 func (a *Application) initHTTPServer() {
-	srvc := service.NewURLService(a.repo)
-
 	h := handler.NewHandler(
-		srvc,
+		a.service,
 		a.cfg,
 		a.log,
 		a.dbConfig,
@@ -23,3 +20,4 @@ func (a *Application) initHTTPServer() {
 		Handler: h.InitRouter(a.log, *a.cfg),
 	}
 }
+
