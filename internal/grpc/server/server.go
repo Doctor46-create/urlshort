@@ -25,7 +25,7 @@ func NewGRPCServer(cfg config.Config, svc service.Shortener) *GRPCServer {
 }
 
 func (s *GRPCServer) Start() error {
-	listener, err := net.Listen("tcp", s.cfg.GetAddress())
+	listener, err := net.Listen("tcp", s.cfg.GetGRPCAddress())
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
@@ -37,7 +37,7 @@ func (s *GRPCServer) Start() error {
 
 	reflection.Register(s.grpcServer)
 
-	fmt.Printf("gRPC server listening on %s\n", s.cfg.GetAddress())
+	fmt.Printf("gRPC server listening on %s\n", s.cfg.GetGRPCAddress())
 	return s.grpcServer.Serve(listener)
 }
 
