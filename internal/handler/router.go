@@ -41,6 +41,7 @@ func (h *Handler) InitRouter(logger *zap.Logger, cfg config.Config) chi.Router {
 	r.With(GetOnly(logger)).Get("/{shortKey}", h.urlHandler.RedirectURL)
 	r.With(GetOnly(logger)).Get("/ping", h.urlHandler.PingDB)
 	r.With(GetOnly(logger)).Get("/api/user/urls", h.urlHandler.GetUserURLs)
+	r.With(GetOnly(logger)).Get("/api/internal/stats", h.urlHandler.GetStats)
 	r.Delete("/api/user/urls", h.urlHandler.DeleteURLs)
 
 	if h.enablePProf() {
