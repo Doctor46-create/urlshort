@@ -1,27 +1,46 @@
+// Package server provides the entry point for starting the URL shortening HTTP server.
 package server
 
 import (
-	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/Doctor46-create/urlshort/internal/config"
-	"github.com/Doctor46-create/urlshort/internal/repository"
-	"github.com/Doctor46-create/urlshort/internal/service"
-	"github.com/Doctor46-create/urlshort/internal/handler"
 )
 
 func Execute() {
 	cfg := config.GetConfig()
-	repo := repository.NewURLRepository()
-	srvc := service.NewURLService(repo)
-	handler := handler.NewHandler(srvc, cfg)
 
-	server := &http.Server{
-		Addr:    cfg.GetAddress(),
-		Handler: handler.InitRouter(),
-	}
+	app := NewApplication(cfg)
+	app.Init()
 
-	err := server.ListenAndServe()
-	if err != nil {
-		panic(err)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go func() {
+		app.Run()
+	}()
+
+	sig := <-stop
+
+	app.log.Info("Received signal, shutting down...", zap.String("signal", sig.String()))
+
+	shutdownTimeout := 5 * time.Second
+	done := make(chan struct{})
+
+	go func() {
+		app.Shutdown()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		app.log.Info("Server shutdown completed")
+	case <-time.After(shutdownTimeout):
+		app.log.Warn("Server shutdown timed out, exiting forcefully")
 	}
 }

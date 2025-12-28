@@ -1,44 +1,38 @@
-# go-musthave-shortener-tpl
+# Profile Analysis Results
 
-Шаблон репозитория для трека «Сервис сокращения URL».
-
-## Начало работы
-
-1. Склонируйте репозиторий в любую подходящую директорию на вашем компьютере.
-2. В корне репозитория выполните команду `go mod init <name>` (где `<name>` — адрес вашего репозитория на GitHub без префикса `https://`) для создания модуля.
-
-## Обновление шаблона
-
-Чтобы иметь возможность получать обновления автотестов и других частей шаблона, выполните команду:
+## Memory Profile Comparison
 
 ```
-git remote add -m main template https://github.com/Yandex-Practicum/go-musthave-shortener-tpl.git
+File: shortener
+Type: inuse_space
+Time: 2025-12-14 18:22:20 MSK
+Showing nodes accounting for 1039.77kB, 40.57% of 2563.10kB total
+Dropped 2 nodes (cum <= 12.82kB)
+      flat  flat%   sum%        cum   cum%
+  525.43kB 20.50% 20.50%   525.43kB 20.50%  github.com/go-playground/validator/v10.map.init.7
+  515.19kB 20.10% 40.60%   515.19kB 20.10%  github.com/Doctor46-create/urlshort/internal/repository/database.(*urlRepository).initDeletionWorkers
+    -513kB 20.01% 20.59%     -513kB 20.01%  runtime.allocm
+  512.14kB 19.98% 40.57%   512.14kB 19.98%  github.com/go-chi/chi/v5.endpoints.Value (inline)
+  512.06kB 19.98% 60.54%   512.06kB 19.98%  net.newFD (inline)
+ -512.05kB 19.98% 40.57%  -512.05kB 19.98%  time.NewTimer
+ -512.05kB 19.98% 20.59%  -512.05kB 19.98%  runtime.(*scavengerState).init
+  512.05kB 19.98% 40.57%   512.05kB 19.98%  runtime.acquireSudog
+         0     0% 40.57%   512.06kB 19.98%  database/sql.(*DB).Ping (inline)
+         0     0% 40.57%   512.06kB 19.98%  database/sql.(*DB).PingContext
+         0     0% 40.57%   512.06kB 19.98%  database/sql.(*DB).PingContext.func1
+         0     0% 40.57%   512.06kB 19.98%  database/sql.(*DB).conn
+         0     0% 40.57%   512.06kB 19.98%  database/sql.(*DB).retry
+         0     0% 40.57%   512.06kB 19.98%  github.com/Doctor46-create/urlshort/internal/config/db.NewDatabase
+         0     0% 40.57%   512.14kB 19.98%  github.com/Doctor46-create/urlshort/internal/handler.(*Handler).InitRouter
+         0     0% 40.57%   515.19kB 20.10%  github.com/Doctor46-create/urlshort/internal/repository/database.NewURLRepository
+         0     0% 40.57%  1539.40kB 60.06%  github.com/Doctor46-create/urlshort/internal/server.Execute
+         0     0% 40.57%   512.14kB 19.98%  github.com/go-chi/chi/v5.(*Mux).Mount
+         0     0% 40.57%   512.14kB 19.98%  github.com/go-chi/chi/v5.(*Mux).handle
+         0     0% 40.57%   512.14kB 19.98%  github.com/go-chi/chi/v5.(*node).InsertRoute
+         0     0% 40.57%   512.14kB 19.98%  github.com/go-chi/chi/v5.(*node).setEndpoint
+         0     0% 40.57%   525.43kB 20.50%  github.com/go-playground/validator/v10.init
+         0     0% 40.57%   512.06kB 19.98%  github.com/jackc/pgx/v5.ConnectConfig
+         0     0% 40.57%   512.06kB 19.98%  github.com/jackc/pgx/v5.connect
 ```
 
-Для обновления кода автотестов выполните команду:
-
-```
-git fetch template && git checkout template/main .github
-```
-
-Затем добавьте полученные изменения в свой репозиторий.
-
-## Запуск автотестов
-
-Для успешного запуска автотестов называйте ветки `iter<number>`, где `<number>` — порядковый номер инкремента. Например, в ветке с названием `iter4` запустятся автотесты для инкрементов с первого по четвёртый.
-
-При мёрже ветки с инкрементом в основную ветку `main` будут запускаться все автотесты.
-
-Подробнее про локальный и автоматический запуск читайте в [README автотестов](https://github.com/Yandex-Practicum/go-autotests).
-
-## Структура проекта
-
-Приведённая в этом репозитории структура проекта является рекомендуемой, но не обязательной.
-
-Это лишь пример организации кода, который поможет вам в реализации сервиса.
-
-При необходимости можно вносить изменения в структуру проекта, использовать любые библиотеки и предпочитаемые структурные паттерны организации кода приложения, например:
-- **DDD** (Domain-Driven Design)
-- **Clean Architecture**
-- **Hexagonal Architecture**
-- **Layered Architecture**
+Generated on Sun Dec 14 18:27:34 MSK 2025

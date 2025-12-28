@@ -1,0 +1,351 @@
+package handler
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/Doctor46-create/urlshort/internal/model"
+	"github.com/Doctor46-create/urlshort/internal/service"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"go.uber.org/zap"
+)
+
+func (h *urlHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
+	if !ok {
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.logger.Error("Failed to read request body", zap.Error(err))
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	originalURL := string(body)
+	if originalURL == "" {
+		h.logger.Error("Empty URL in request")
+		http.Error(w, "Empty URL", http.StatusBadRequest)
+		return
+	}
+
+	requestID := r.Header.Get("X-Request-ID")
+
+	shortKey, err := h.srvc.Shorten(originalURL, requestID, userID)
+	if err != nil {
+		if h.handleConflictError(w, err, originalURL, requestID, "text") {
+			return
+		}
+
+		h.logger.Error("Failed to shorten URL", zap.Error(err), zap.String("url", originalURL))
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(h.cfg.GetBaseURL() + "/" + shortKey))
+
+	h.logger.Info("URL shortened successfully",
+		zap.String("original_url", originalURL),
+		zap.String("short_key", shortKey),
+		zap.String("request_id", requestID))
+}
+
+func (h *urlHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
+	shortKey := chi.URLParam(r, "shortKey")
+	originalURL, err := h.srvc.GetOriginal(shortKey)
+	if err != nil {
+		if errors.Is(err, model.ErrURLIsDeleted) {
+			h.logger.Error("URL has been deleted", zap.Error(err))
+			http.Error(w, "Deleted", http.StatusGone)
+			return
+		}
+		h.logger.Error("URL not found", zap.Error(err), zap.String("short_key", shortKey))
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Location", originalURL)
+	w.WriteHeader(http.StatusTemporaryRedirect)
+
+	h.logger.Info("URL redirected successfully",
+		zap.String("short_key", shortKey),
+		zap.String("original_url", originalURL))
+}
+
+func (h *urlHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	newRequest := &model.JSONRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&newRequest); err != nil {
+		h.logger.Error("Failed to decode JSON request", zap.Error(err))
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	err := model.InputJSONValidate(newRequest)
+	if err != nil {
+		h.logger.Error("JSON validation failed", zap.Error(err), zap.Any("request", newRequest))
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	requestID := r.Header.Get("X-Request-ID")
+
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
+	if !ok {
+		return
+	}
+
+	shortKey, err := h.srvc.Shorten(newRequest.URL, requestID, userID)
+	if err != nil {
+		if h.handleConflictError(w, err, newRequest.URL, requestID, "json") {
+			return
+		}
+		h.logger.Error("Failed to shorten URL from JSON", zap.Error(err), zap.String("url", newRequest.URL))
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	response := model.JSONResponse{
+		Result: h.cfg.GetBaseURL() + "/" + shortKey,
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		h.logger.Error("Failed to marshal JSON response", zap.Error(err))
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+
+	h.logger.Info("JSON URL shortened successfully",
+		zap.String("original_url", newRequest.URL),
+		zap.String("short_key", shortKey),
+		zap.String("request_id", requestID))
+}
+
+func (h *urlHandler) PingDB(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		h.logger.Info("PingDB called but no database configured")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("No database configured"))
+		return
+	}
+
+	err := h.srvc.PingDB()
+	if err != nil {
+		h.logger.Error("Database ping failed", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Database is available"))
+	h.logger.Info("Database ping successful")
+}
+
+func (h *urlHandler) ShortenBatchURL(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		http.Error(w, "Unsupported media type", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	var requestItems []model.BatchRequestItem
+	if err := json.NewDecoder(r.Body).Decode(&requestItems); err != nil {
+		h.logger.Error("Failed to decode batch request", zap.Error(err))
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if len(requestItems) == 0 {
+		http.Error(w, "Empty batch", http.StatusBadRequest)
+		return
+	}
+
+	for _, item := range requestItems {
+		if item.OriginalURL == "" {
+			http.Error(w, "Empty URL in batch", http.StatusBadRequest)
+			return
+		}
+	}
+
+	requestID := r.Header.Get("X-Request-ID")
+
+	userID, ok := getUserIDFromContext(ctx, w, h.logger)
+	if !ok {
+		return
+	}
+	results, err := h.srvc.ShortenBatch(requestItems, requestID, userID)
+	if err != nil {
+		if errors.Is(err, service.ErrURLAlreadyShortened) {
+			conflictErr := &service.URLAlreadyShortenedError{}
+			if errors.As(err, &conflictErr) {
+				h.logger.Error("Batch contains duplicate URL",
+					zap.Error(err),
+					zap.String("existing_short_key", conflictErr.ShortKey),
+					zap.String("request_id", requestID))
+				http.Error(w, fmt.Sprintf("Duplicate URL found with short key: %s", conflictErr.ShortKey), http.StatusConflict)
+				return
+			}
+		}
+
+		h.logger.Error("Failed to shorten URL batch",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		http.Error(w, "Failed to shorten URLs", http.StatusInternalServerError)
+		return
+	}
+
+	responseWithFullURL := make([]model.BatchResponseItem, len(results))
+	for i, result := range results {
+		responseWithFullURL[i] = model.BatchResponseItem{
+			CorrelationID: result.CorrelationID,
+			ShortURL:      h.cfg.GetBaseURL() + "/" + result.ShortURL,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(responseWithFullURL); err != nil {
+		h.logger.Error("Failed to encode batch response",
+			zap.Error(err),
+			zap.String("request_id", requestID))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	h.logger.Info("URL batch shortened successfully",
+		zap.Int("count", len(responseWithFullURL)),
+		zap.String("request_id", requestID))
+}
+
+func (h *urlHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	h.logger.Info("Context values check",
+		zap.Any("user_id_in_ctx", ctx.Value(userIDKey)),
+		zap.Any("had_cookie_in_ctx", ctx.Value(hadCookieKey)),
+		zap.Any("cookie_valid_in_ctx", ctx.Value(cookieWasValidKey)))
+
+	hadCookie, _ := ctx.Value(hadCookieKey).(bool)
+	cookieWasValid, _ := ctx.Value(cookieWasValidKey).(bool)
+
+	if hadCookie && !cookieWasValid {
+		h.logger.Warn("Unauthorized access: invalid cookie")
+		render.Status(r, http.StatusUnauthorized)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	userIDInterface := ctx.Value(userIDKey)
+	userID, ok := userIDInterface.(string)
+	if !ok || userID == "" {
+		h.logger.Error("Failed to get user_id from context")
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	urls, err := h.srvc.GetUserURLs(userID)
+	if err != nil {
+		h.logger.Error("Failed to retrieve user URLs", zap.Error(err))
+		render.Status(r, http.StatusInternalServerError)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	if len(urls) == 0 {
+		h.logger.Info("No URLs found for user", zap.String("user_id", userID))
+		render.Status(r, http.StatusNoContent)
+		render.JSON(w, r, nil)
+		return
+	}
+
+	for i := range urls {
+		urls[i].ShortURL = h.cfg.GetBaseURL() + "/" + urls[i].ShortURL
+	}
+
+	h.logger.Info("Successfully retrieved user URLs",
+		zap.Any("urls_data", urls),
+		zap.String("user_id", userID),
+		zap.Int("url_count",
+			len(urls)))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(urls); err != nil {
+		h.logger.Error("Failed to encode response", zap.Error(err))
+	}
+}
+
+func (h *urlHandler) DeleteURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userIDInterface := ctx.Value(userIDKey)
+	userID, ok := userIDInterface.(string)
+	if !ok {
+		h.logger.Error("Failed to get user ID from context")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var shortURLs []string
+	if err := json.NewDecoder(r.Body).Decode(&shortURLs); err != nil {
+		h.logger.Error("Invalid request body", zap.Error(err))
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	h.srvc.DeleteURLs(userID, shortURLs)
+
+	w.WriteHeader(http.StatusAccepted)
+	h.logger.Info("URLs queued for deletion",
+		zap.String("user_id", userID),
+		zap.Strings("short_urls", shortURLs))
+}
+
+func (h *urlHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	realIP := r.Header.Get("X-Real-IP")
+
+	if !ipAllowed(h.cfg.GetTrustedSubnet(), realIP) {
+		h.logger.Warn("Forbidden stats access",
+			zap.String("real_ip", realIP),
+			zap.String("trusted_subnet", h.cfg.GetTrustedSubnet()),
+		)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	urls, users, err := h.srvc.GetStats()
+	if err != nil {
+		h.logger.Error("Failed to get stats", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	resp := model.StatsResponse{
+		URLs:  urls,
+		Users: users,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
